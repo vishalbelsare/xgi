@@ -3,8 +3,8 @@
 This module is part of the stats package, and it defines edge-level statistics.  That
 is, each function defined in this module is assumed to define an edge-quantity mapping.
 Each callable defined here is accessible via a `Network` object, or a
-:class:`~xgi.core.reportviews.DiEdgeView` object.  For more details, see the `tutorial
-<https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+:class:`~xgi.core.views.DiEdgeView` object.  For more details, see the `tutorial
+<https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
 Examples
 --------
@@ -135,12 +135,14 @@ def order(net, bunch, degree=None):
     {0: 3, 1: 2}
     """
     if degree is None:
-        return {e: len(net._edge_in[e].union(net._edge_out[e])) - 1 for e in bunch}
+        return {
+            e: len(net._edge[e]["in"].union(net._edge[e]["out"])) - 1 for e in bunch
+        }
     else:
         return {
             e: sum(
-                len(net._node_in[n].union(net._node_out[n])) == degree
-                for n in net._edge_in[e].union(net._edge_out[e])
+                len(net._node[n]["in"].union(net._node[n]["out"])) == degree
+                for n in net._edge[e]["in"].union(net._edge[e]["out"])
             )
             - 1
             for e in bunch
@@ -176,13 +178,13 @@ def size(net, bunch, degree=None):
     {0: 4, 1: 3}
     """
     if degree is None:
-        return {e: len(net._edge_in[e].union(net._edge_out[e])) for e in bunch}
+        return {e: len(net._edge[e]["in"].union(net._edge[e]["out"])) for e in bunch}
     else:
         return {
             e: sum(
                 1
-                for n in net._edge_in[e].union(net._edge_out[e])
-                if len(net._node_in[n].union(net._node_out[n])) == degree
+                for n in net._edge[e]["in"].union(net._edge[e]["out"])
+                if len(net._node[n]["in"].union(net._node[n]["out"])) == degree
             )
             for e in bunch
         }
@@ -219,13 +221,13 @@ def tail_order(net, bunch, degree=None):
 
     """
     if degree is None:
-        return {e: len(net._edge_out[e]) - 1 for e in bunch}
+        return {e: len(net._edge[e]["in"]) - 1 for e in bunch}
     else:
         return {
             e: sum(
                 1
-                for n in net._edge_out[e]
-                if len(net._node_in[n].union(net._node_out[n])) == degree
+                for n in net._edge[e]["in"]
+                if len(net._node[n]["in"].union(net._node[n]["out"])) == degree
             )
             - 1
             for e in bunch
@@ -260,13 +262,13 @@ def tail_size(net, bunch, degree=None):
     {0: 2, 1: 1}
     """
     if degree is None:
-        return {e: len(net._edge_out[e]) for e in bunch}
+        return {e: len(net._edge[e]["in"]) for e in bunch}
     else:
         return {
             e: sum(
                 1
-                for n in net._edge_out[e]
-                if len(net._node_in[n].union(net._node_out[n])) == degree
+                for n in net._edge[e]["in"]
+                if len(net._node[n]["in"].union(net._node[n]["out"])) == degree
             )
             for e in bunch
         }
@@ -300,13 +302,13 @@ def head_order(net, bunch, degree=None):
     {0: 1, 1: 1}
     """
     if degree is None:
-        return {e: len(net._edge_in[e]) - 1 for e in bunch}
+        return {e: len(net._edge[e]["out"]) - 1 for e in bunch}
     else:
         return {
             e: sum(
                 1
-                for n in net._edge_in[e]
-                if len(net._node_in[n].union(net._node_out[n])) == degree
+                for n in net._edge[e]["out"]
+                if len(net._node[n]["in"].union(net._node[n]["out"])) == degree
             )
             - 1
             for e in bunch
@@ -341,13 +343,13 @@ def head_size(net, bunch, degree=None):
     {0: 2, 1: 2}
     """
     if degree is None:
-        return {e: len(net._edge_in[e]) for e in bunch}
+        return {e: len(net._edge[e]["out"]) for e in bunch}
     else:
         return {
             e: sum(
                 1
-                for n in net._edge_in[e]
-                if len(net._node_in[n].union(net._node_out[n])) == degree
+                for n in net._edge[e]["out"]
+                if len(net._node[n]["in"].union(net._node[n]["out"])) == degree
             )
             for e in bunch
         }

@@ -4,6 +4,7 @@
     This is currently an experimental feature.
 
 """
+
 from collections.abc import Hashable, Iterable
 from copy import copy, deepcopy
 from itertools import count
@@ -11,7 +12,7 @@ from warnings import warn
 
 from ..exception import IDNotFound, XGIError, frozen
 from ..utils import IDDict, update_uid_counter
-from .diviews import DiEdgeView, DiNodeView
+from .views import DiEdgeView, DiNodeView
 
 __all__ = ["DiHypergraph"]
 
@@ -51,6 +52,10 @@ class DiHypergraph:
     **attr : dict, optional, default: None
         Attributes to add to the hypergraph as key, value pairs.
 
+    See Also
+    --------
+    ~xgi.core.hypergraph.Hypergraph
+
     Notes
     -----
     Unique IDs are assigned to each node and edge internally and are used to refer to
@@ -62,7 +67,7 @@ class DiHypergraph:
     In addition to the methods listed in this page, other methods defined in the `stats`
     package are also accessible via the `DiHypergraph` class.  For more details, see the
     `tutorial
-    <https://github.com/ComplexGroupInteractions/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     References
     ----------
@@ -81,11 +86,12 @@ class DiHypergraph:
     >>> [sorted(e) for e in DH.edges.members()]
     [[1, 2, 3, 4], [5, 6, 7, 8]]
     """
+
     _node_dict_factory = IDDict
     _node_attr_dict_factory = IDDict
-    _hyperedge_dict_factory = IDDict
-    _hyperedge_attr_dict_factory = IDDict
-    _hypergraph_attr_dict_factory = dict
+    _edge_dict_factory = IDDict
+    _edge_attr_dict_factory = IDDict
+    _net_attr_dict_factory = dict
 
     def __getstate__(self):
         """Function that allows pickling.
@@ -103,12 +109,10 @@ class DiHypergraph:
         """
         return {
             "_edge_uid": self._edge_uid,
-            "_hypergraph": self._hypergraph,
-            "_node_in": self._node_in,
-            "_node_out": self._node_out,
+            "_net_attr": self._net_attr,
+            "_node": self._node,
             "_node_attr": self._node_attr,
-            "_edge_in": self._edge_in,
-            "_edge_out": self._edge_out,
+            "_edge": self._edge,
             "_edge_attr": self._edge_attr,
         }
 
@@ -126,41 +130,37 @@ class DiHypergraph:
         This allows the python multiprocessing module to be used.
         """
         self._edge_uid = state["_edge_uid"]
-        self._hypergraph = state["_hypergraph"]
-        self._node_in = state["_node_in"]
-        self._node_out = state["_node_out"]
+        self._net_attr = state["_net_attr"]
+        self._node = state["_node"]
         self._node_attr = state["_node_attr"]
-        self._edge_in = state["_edge_in"]
-        self._edge_out = state["_edge_out"]
+        self._edge = state["_edge"]
         self._edge_attr = state["_edge_attr"]
         self._nodeview = DiNodeView(self)
         self._edgeview = DiEdgeView(self)
 
     def __init__(self, incoming_data=None, **attr):
         self._edge_uid = count()
-        self._hypergraph = self._hypergraph_attr_dict_factory()
+        self._net_attr = self._net_attr_dict_factory()
 
-        self._node_in = self._node_dict_factory()
-        self._node_out = self._node_dict_factory()
+        self._node = self._node_dict_factory()
         self._node_attr = self._node_attr_dict_factory()
 
-        self._edge_in = self._hyperedge_dict_factory()
-        self._edge_out = self._hyperedge_dict_factory()
-        self._edge_attr = self._hyperedge_attr_dict_factory()
+        self._edge = self._edge_dict_factory()
+        self._edge_attr = self._edge_attr_dict_factory()
 
         self._nodeview = DiNodeView(self)
-        """A :class:`~xgi.core.direportviews.DiNodeView` of the directed hypergraph."""
+        """A :class:`~xgi.core.views.DiNodeView` of the directed hypergraph."""
 
         self._edgeview = DiEdgeView(self)
-        """An :class:`~xgi.core.direportviews.DiEdgeView` of the directed hypergraph."""
+        """An :class:`~xgi.core.views.DiEdgeView` of the directed hypergraph."""
 
         if incoming_data is not None:
             # This import needs to happen when this function is called, not when it is
             # defined.  Otherwise, a circular import error would happen.
-            from ..convert import convert_to_dihypergraph
+            from ..convert import to_dihypergraph
 
-            convert_to_dihypergraph(incoming_data, create_using=self)
-        self._hypergraph.update(attr)  # must be after convert
+            to_dihypergraph(incoming_data, create_using=self)
+        self._net_attr.update(attr)  # must be after convert
 
     def __str__(self):
         """Returns a short summary of the directed hypergraph.
@@ -184,7 +184,7 @@ class DiHypergraph:
         iterator
             An iterator over all nodes in the dihypergraph.
         """
-        return iter(self._node_in)
+        return iter(self._node)
 
     def __contains__(self, n):
         """Check for if a node is in this dihypergraph.
@@ -200,7 +200,7 @@ class DiHypergraph:
             Whether the node exists in the dihypergraph.
         """
         try:
-            return n in self._node_in
+            return n in self._node
         except TypeError:
             return False
 
@@ -218,18 +218,18 @@ class DiHypergraph:
         num_edges : number of edges in the dihypergraph
 
         """
-        return len(self._node_in)
+        return len(self._node)
 
     def __getitem__(self, attr):
         """Read dihypergraph attribute."""
         try:
-            return self._hypergraph[attr]
+            return self._net_attr[attr]
         except KeyError:
             raise XGIError("This attribute has not been set.")
 
     def __setitem__(self, attr, val):
         """Write dihypergraph attribute."""
-        self._hypergraph[attr] = val
+        self._net_attr[attr] = val
 
     def __getattr__(self, attr):
         stat = getattr(self.nodes, attr, None)
@@ -274,7 +274,7 @@ class DiHypergraph:
         4
 
         """
-        return len(self._node_in)
+        return len(self._node)
 
     @property
     def num_edges(self):
@@ -297,7 +297,7 @@ class DiHypergraph:
         >>> DH.num_edges
         1
         """
-        return len(self._edge_in)
+        return len(self._edge)
 
     @property
     def nodes(self):
@@ -328,9 +328,8 @@ class DiHypergraph:
         If node is already in the dihypergraph, its attributes are still updated.
 
         """
-        if node not in self._node_in:
-            self._node_in[node] = set()
-            self._node_out[node] = set()
+        if node not in self._node:
+            self._node[node] = {"in": set(), "out": set()}
             self._node_attr[node] = self._node_attr_dict_factory()
         self._node_attr[node].update(attr)
 
@@ -356,20 +355,19 @@ class DiHypergraph:
         """
         for n in nodes_for_adding:
             try:
-                newnode = n not in self._node_in
+                newnode = n not in self._node
                 newdict = attr
             except TypeError:
                 n, ndict = n
-                newnode = n not in self._node_in
+                newnode = n not in self._node
                 newdict = attr.copy()
                 newdict.update(ndict)
             if newnode:
-                self._node_in[n] = set()
-                self._node_out[n] = set()
+                self._node[n] = {"in": set(), "out": set()}
                 self._node_attr[n] = self._node_attr_dict_factory()
             self._node_attr[n].update(newdict)
 
-    def remove_node(self, n, strong=False):
+    def remove_node(self, n, strong=False, remove_empty=True):
         """Remove a single node.
 
         The removal may be weak (default) or strong.  In weak removal, the node is
@@ -381,9 +379,11 @@ class DiHypergraph:
         ----------
         n : node
             A node in the dihypergraph
-
         strong : bool (default False)
             Whether to execute weak or strong removal.
+        remove_empty : bool, optional
+            Whether to remove empty edges (0 members in both head and tail).
+            By default, True.
 
         Raises
         ------
@@ -395,38 +395,43 @@ class DiHypergraph:
         remove_nodes_from
 
         """
-        out_edge_neighbors = self._node_in[n]
-        in_edge_neighbors = self._node_out[n]
-        del self._node_in[n]
-        del self._node_out[n]
+        edge_neighbors = self._node[n]
+        del self._node[n]
         del self._node_attr[n]
 
         if strong:
-            for edge in in_edge_neighbors.union(out_edge_neighbors):
-                del self._edge_in[edge]
-                del self._edge_out[edge]
+            for edge in edge_neighbors["in"].union(edge_neighbors["out"]):
+                del self._edge[edge]
                 del self._edge_attr[edge]
         else:  # weak removal
-            for edge in in_edge_neighbors:
-                self._edge_in[edge].remove(n)
+            for edge in edge_neighbors["in"]:
+                self._edge[edge]["out"].remove(n)
 
-            for edge in out_edge_neighbors:
-                self._edge_out[edge].remove(n)
+            for edge in edge_neighbors["out"]:
+                self._edge[edge]["in"].remove(n)
 
             # remove empty edges
-            for edge in in_edge_neighbors.union(out_edge_neighbors):
-                if not self._edge_in[edge] and not self._edge_out[edge]:
-                    del self._edge_in[edge]
-                    del self._edge_out[edge]
+            for edge in edge_neighbors["in"].union(edge_neighbors["out"]):
+                if (
+                    not self._edge[edge]["in"]
+                    and not self._edge[edge]["out"]
+                    and remove_empty
+                ):
+                    del self._edge[edge]
                     del self._edge_attr[edge]
 
-    def remove_nodes_from(self, nodes):
+    def remove_nodes_from(self, nodes, strong=False, remove_empty=True):
         """Remove multiple nodes.
 
         Parameters
         ----------
         nodes : iterable
             An iterable of nodes.
+        strong : bool (default False)
+            Whether to execute weak or strong removal.
+        remove_empty : bool, optional
+            Whether to remove empty edges (0 members in both head and tail).
+            By default, True.
 
         See Also
         --------
@@ -434,10 +439,10 @@ class DiHypergraph:
 
         """
         for n in nodes:
-            if n not in self._node_in:
+            if n not in self._node:
                 warn(f"Node {n} not in dihypergraph")
                 continue
-            self.remove_node(n)
+            self.remove_node(n, strong=strong, remove_empty=remove_empty)
 
     def set_node_attributes(self, values, name=None):
         """Sets node attributes from a given value or dictionary of values.
@@ -502,7 +507,7 @@ class DiHypergraph:
             except (TypeError, ValueError, AttributeError):
                 raise XGIError("Must pass a dictionary of dictionaries")
 
-    def add_edge(self, members, id=None, **attr):
+    def add_edge(self, members, idx=None, **attr):
         """Add one edge with optional attributes.
 
         Parameters
@@ -511,15 +516,10 @@ class DiHypergraph:
             An list or tuple (size 2) of iterables. The first entry contains the
             elements of the tail and the second entry contains the elements
             of the head.
-        id : hashable, default None
+        idx : hashable, default None
             Id of the new edge. If None, a unique numeric ID will be created.
         **attr : dict, optional
             Attributes of the new edge.
-
-        Raises
-        -----
-        XGIError
-            If `members` is empty or is not a list or tuple.
 
         See Also
         --------
@@ -533,50 +533,41 @@ class DiHypergraph:
         >>> import xgi
         >>> DH = xgi.DiHypergraph()
         >>> DH.add_edge(([1, 2, 3], [2, 3, 4]))
-        >>> DH.add_edge(([3, 4], set()), id='myedge')
+        >>> DH.add_edge(([3, 4], set()), idx='myedge')
         """
-        if not members:
-            raise XGIError("Cannot add an empty edge")
-
         if isinstance(members, (tuple, list)):
             tail = members[0]
             head = members[1]
         else:
             raise XGIError("Directed edge must be a list or tuple!")
 
-        if not head and not tail:
-            raise XGIError("Cannot add an empty edge")
+        uid = next(self._edge_uid) if idx is None else idx
 
-        uid = next(self._edge_uid) if id is None else id
-
-        if id in self._edge_in.keys():  # check that uid is not present yet
-            warn(f"uid {id} already exists, cannot add edge {members}")
+        if idx in self._edge.keys():  # check that uid is not present yet
+            warn(f"uid {idx} already exists, cannot add edge {members}")
             return
 
-        self._edge_in[uid] = set()
-        self._edge_out[uid] = set()
+        self._edge[uid] = {"in": set(), "out": set()}
 
         for node in tail:
-            if node not in self._node_in:
-                self._node_in[node] = set()
-                self._node_out[node] = set()
+            if node not in self._node:
+                self._node[node] = {"in": set(), "out": set()}
                 self._node_attr[node] = self._node_attr_dict_factory()
-            self._node_in[node].add(uid)
-            self._edge_out[uid].add(node)
+            self._node[node]["out"].add(uid)
+            self._edge[uid]["in"].add(node)
 
         for node in head:
-            if node not in self._node_out:
-                self._node_in[node] = set()
-                self._node_out[node] = set()
+            if node not in self._node:
+                self._node[node] = {"in": set(), "out": set()}
                 self._node_attr[node] = self._node_attr_dict_factory()
-            self._node_out[node].add(uid)
-            self._edge_in[uid].add(node)
+            self._node[node]["in"].add(uid)
+            self._edge[uid]["out"].add(node)
 
-        self._edge_attr[uid] = self._hyperedge_attr_dict_factory()
+        self._edge_attr[uid] = self._edge_attr_dict_factory()
         self._edge_attr[uid].update(attr)
 
-        if id:  # set self._edge_uid correctly
-            update_uid_counter(self, id)
+        if idx:  # set self._edge_uid correctly
+            update_uid_counter(self, idx)
 
     def add_edges_from(self, ebunch_to_add, **attr):
         """Add multiple directed edges with optional attributes.
@@ -608,7 +599,7 @@ class DiHypergraph:
             i.e. you cannot mix different formats.  The iterables containing edge
             members cannot be strings.
 
-        attr : \*\*kwargs, optional
+        **attr : kwargs, optional
             Additional attributes to be assigned to all edges. Attribues specified via
             `ebunch_to_add` take precedence over `attr`.
 
@@ -680,9 +671,9 @@ class DiHypergraph:
         """
         # format 5 is the easiest one
         if isinstance(ebunch_to_add, dict):
-            for id, members in ebunch_to_add.items():
-                if id in self._edge_in.keys():  # check that uid is not present yet
-                    warn(f"uid {id} already exists, cannot add edge {members}.")
+            for idx, members in ebunch_to_add.items():
+                if idx in self._edge.keys():  # check that uid is not present yet
+                    warn(f"uid {idx} already exists, cannot add edge {members}.")
                     continue
 
                 if isinstance(members, (tuple, list)):
@@ -692,27 +683,24 @@ class DiHypergraph:
                     raise XGIError("Directed edge must be a list or tuple!")
 
                 try:
-                    self._edge_in[id] = set(head)
-                    self._edge_out[id] = set(tail)
+                    self._edge[idx] = {"in": set(tail), "out": set(head)}
                 except TypeError as e:
                     raise XGIError("Invalid ebunch format") from e
 
                 for n in tail:
-                    if n not in self._node_in:
-                        self._node_in[n] = set()
-                        self._node_out[n] = set()
+                    if n not in self._node:
+                        self._node[n] = {"in": set(), "out": set()}
                         self._node_attr[n] = self._node_attr_dict_factory()
-                    self._node_in[n].add(id)
-                self._edge_attr[id] = self._hyperedge_attr_dict_factory()
+                    self._node[n]["out"].add(idx)
+                self._edge_attr[idx] = self._edge_attr_dict_factory()
 
                 for n in head:
-                    if n not in self._node_in:
-                        self._node_in[n] = set()
-                        self._node_out[n] = set()
+                    if n not in self._node:
+                        self._node[n] = {"in": set(), "out": set()}
                         self._node_attr[n] = self._node_attr_dict_factory()
-                    self._node_out[n].add(id)
+                    self._node[n]["in"].add(idx)
 
-                update_uid_counter(self, id)
+                update_uid_counter(self, idx)
 
             return
         # in formats 1-4 we only know that ebunch_to_add is an iterable, so we iterate
@@ -745,58 +733,95 @@ class DiHypergraph:
         e = first_edge
         while True:
             if format1:
-                members, id, eattr = e, next(self._edge_uid), {}
+                members, idx, eattr = e, next(self._edge_uid), {}
             elif format2:
-                members, id, eattr = e[0], e[1], {}
+                members, idx, eattr = e[0], e[1], {}
             elif format3:
-                members, id, eattr = e[0], next(self._edge_uid), e[1]
+                members, idx, eattr = e[0], next(self._edge_uid), e[1]
             elif format4:
-                members, id, eattr = e[0], e[1], e[2]
+                members, idx, eattr = e[0], e[1], e[2]
 
-            if id in self._edge_in.keys():  # check that uid is not present yet
-                warn(f"uid {id} already exists, cannot add edge {members}.")
+            if idx in self._edge.keys():  # check that uid is not present yet
+                warn(f"uid {idx} already exists, cannot add edge {members}.")
             else:
                 try:
                     tail = members[0]
                     head = members[1]
-                    self._edge_out[id] = set(tail)
-                    self._edge_in[id] = set(head)
+                    self._edge[idx] = {"in": set(tail), "out": set(head)}
                 except TypeError as e:
                     raise XGIError("Invalid ebunch format") from e
 
                 for node in tail:
-                    if node not in self._node_in:
-                        self._node_in[node] = set()
-                        self._node_out[node] = set()
+                    if node not in self._node:
+                        self._node[node] = {"in": set(), "out": set()}
                         self._node_attr[node] = self._node_attr_dict_factory()
-                    self._node_in[node].add(id)
-                    self._edge_out[id].add(node)
+                    self._node[node]["out"].add(idx)
+                    self._edge[idx]["in"].add(node)
 
                 for node in head:
-                    if node not in self._node_out:
-                        self._node_in[node] = set()
-                        self._node_out[node] = set()
+                    if node not in self._node:
+                        self._node[node] = {"in": set(), "out": set()}
                         self._node_attr[node] = self._node_attr_dict_factory()
-                    self._node_out[node].add(id)
-                    self._edge_in[id].add(node)
+                    self._node[node]["in"].add(idx)
+                    self._edge[idx]["out"].add(node)
 
-                self._edge_attr[id] = self._hyperedge_attr_dict_factory()
-                self._edge_attr[id].update(attr)
-                self._edge_attr[id].update(eattr)
+                self._edge_attr[idx] = self._edge_attr_dict_factory()
+                self._edge_attr[idx].update(attr)
+                self._edge_attr[idx].update(eattr)
 
             try:
                 e = next(new_edges)
             except StopIteration:
                 if format2 or format4:
-                    update_uid_counter(self, id)
+                    update_uid_counter(self, idx)
                 break
 
-    def remove_edge(self, id):
+    def add_node_to_edge(self, edge, node, direction):
+        """Add one node to an existing edge.
+
+        If the node or edge IDs do not exist, they are created.
+
+        Parameters
+        ----------
+        edge : hashable
+            edge ID
+        node : hashable
+            node ID
+        direction : str
+            "in" or "out" indicates that the node should be added to
+            the tail or head respectively.
+
+        See Also
+        --------
+        add_node
+        add_edge
+        remove_node_from_edge
+        """
+        if direction == "in":
+            ed = "in"
+            nd = "out"
+        elif direction == "out":
+            ed = "out"
+            nd = "in"
+        else:
+            raise XGIError("Invalid direction!")
+
+        if edge not in self._edge:
+            self._edge[edge] = {"in": set(), "out": set()}
+            self._edge_attr[edge] = {}
+        if node not in self._node:
+            self._node[node] = {"in": set(), "out": set()}
+            self._node_attr[node] = {}
+
+        self._edge[edge][ed].add(node)
+        self._node[node][nd].add(edge)
+
+    def remove_edge(self, idx):
         """Remove one edge.
 
         Parameters
         ----------
-        id : Hashable
+        idx : Hashable
             edge ID to remove
 
         Raises
@@ -809,17 +834,15 @@ class DiHypergraph:
         remove_edges_from : Remove multiple edges.
 
         """
-        head = self._edge_in[id].copy()
-        tail = self._edge_out[id].copy()
+        edge = self._edge[idx].copy()
 
-        for node in head:
-            self._node_out[node].remove(id)
-        for node in tail:
-            self._node_in[node].remove(id)
+        for node in edge["in"]:
+            self._node[node]["out"].remove(idx)
+        for node in edge["out"]:
+            self._node[node]["in"].remove(idx)
 
-        del self._edge_in[id]
-        del self._edge_out[id]
-        del self._edge_attr[id]
+        del self._edge[idx]
+        del self._edge_attr[idx]
 
     def remove_edges_from(self, ebunch):
         """Remove multiple edges.
@@ -839,18 +862,70 @@ class DiHypergraph:
         remove_edge : remove a single edge.
 
         """
-        for id in ebunch:
-            head = self._edge_in[id].copy()
-            tail = self._edge_out[id].copy()
+        for idx in ebunch:
+            edge = self._edge[idx].copy()
 
-            for node in head:
-                self._node_out[node].remove(id)
-            for node in tail:
-                self._node_in[node].remove(id)
+            for node in edge["in"]:
+                self._node[node]["out"].remove(idx)
+            for node in edge["out"]:
+                self._node[node]["in"].remove(idx)
 
-            del self._edge_in[id]
-            del self._edge_out[id]
-            del self._edge_attr[id]
+            del self._edge[idx]
+            del self._edge_attr[idx]
+
+    def remove_node_from_edge(self, edge, node, direction, remove_empty=True):
+        """Remove a node from an existing edge.
+
+        Parameters
+        ----------
+        edge : hashable
+            The edge ID
+        node : hashable
+            The node ID
+        direction : str
+            "in" or "out" indicates that the node should be removed from
+            the tail or head respectively.
+
+        Raises
+        ------
+        XGIError
+            If either the node or edge does not exist.
+
+        See Also
+        --------
+        remove_node
+        remove_edge
+        add_node_to_edge
+
+        Notes
+        -----
+        If edge is left empty as a result of removing node from it, the edge is also
+        removed.
+
+        """
+        if direction == "in":
+            ed = "in"
+            nd = "out"
+        elif direction == "out":
+            ed = "out"
+            nd = "in"
+        else:
+            raise XGIError("Invalid direction!")
+
+        if edge not in self._edge:
+            raise XGIError(f"Edge {edge} not in the hypergraph")
+        if node not in self._node:
+            raise XGIError(f"Node {node} not in the hypergraph")
+        elif node not in self._edge[edge][ed]:
+            raise XGIError(f"{ed}-edge {edge} does not contain node {node}")
+        else:
+            self._edge[edge][ed].remove(node)
+
+        self._node[node][nd].remove(edge)
+
+        if not self._edge[edge]["in"] and not self._edge[edge]["out"] and remove_empty:
+            del self._edge[edge]
+            del self._edge_attr[edge]
 
     def set_edge_attributes(self, values, name=None):
         """Set the edge attributes from a value or a dictionary of values.
@@ -887,12 +962,12 @@ class DiHypergraph:
             try:
                 for e, value in values.items():
                     try:
-                        self._edge_attr[id][name] = value
+                        self._edge_attr[e][name] = value
                     except IDNotFound:
                         warn(f"Edge {e} does not exist!")
             except AttributeError:
                 # treat `values` as a constant
-                for e in self._edge_in:
+                for e in self._edge:
                     self._edge_attr[e][name] = values
         else:
             try:
@@ -907,26 +982,24 @@ class DiHypergraph:
                     "dict-of-dicts has not been provided."
                 )
 
-    def clear(self, hypergraph_attr=True):
+    def clear(self, remove_net_attr=True):
         """Remove all nodes and edges from the graph.
 
         Also removes node and edge attributes, and optionally hypergraph attributes.
 
         Parameters
         ----------
-        hypergraph_attr : bool, optional
+        remove_net_attr : bool, optional
             Whether to remove hypergraph attributes as well.
             By default, True.
 
         """
-        self._node_in.clear()
-        self._node_out.clear()
+        self._node.clear()
         self._node_attr.clear()
-        self._edge_in.clear()
-        self._edge_out.clear()
+        self._edge.clear()
         self._edge_attr.clear()
-        if hypergraph_attr:
-            self._hypergraph.clear()
+        if remove_net_attr:
+            self._net_attr.clear()
 
     def copy(self):
         """A deep copy of the dihypergraph.
@@ -944,10 +1017,10 @@ class DiHypergraph:
         cp.add_nodes_from((n, deepcopy(attr)) for n, attr in nn.items())
         ee = self.edges
         cp.add_edges_from(
-            (e, id, deepcopy(self.edges[id]))
-            for id, e in ee.dimembers(dtype=dict).items()
+            (e, idx, deepcopy(self.edges[idx]))
+            for idx, e in ee.dimembers(dtype=dict).items()
         )
-        cp._hypergraph = deepcopy(self._hypergraph)
+        cp._net_attr = deepcopy(self._net_attr)
 
         cp._edge_uid = copy(self._edge_uid)
 
@@ -955,40 +1028,25 @@ class DiHypergraph:
 
     def cleanup(self, isolates=False, relabel=True, in_place=True):
         if in_place:
-            if not isolates:
-                self.remove_nodes_from(self.nodes.isolates())
-            if relabel:
-                from ..utils import convert_labels_to_integers
-
-                temp = convert_labels_to_integers(self).copy()
-
-                nn = temp.nodes
-                ee = temp.edges
-
-                self.clear()
-                self.add_nodes_from((n, deepcopy(attr)) for n, attr in nn.items())
-                self.add_edges_from(
-                    (e, id, deepcopy(temp.edges[id]))
-                    for id, e in ee.dimembers(dtype=dict).items()
-                )
-                self._hypergraph = deepcopy(temp._hypergraph)
+            _DH = self
         else:
-            DH = self.copy()
-            if not isolates:
-                DH.remove_nodes_from(DH.nodes.isolates())
-            if relabel:
-                from ..utils import convert_labels_to_integers
+            _DH = self.copy()
 
-                DH = convert_labels_to_integers(DH)
+        if not isolates:
+            _DH.remove_nodes_from(_DH.nodes.isolates())
+        if relabel:
+            from ..utils import convert_labels_to_integers
 
-            return DH
+            convert_labels_to_integers(_DH, in_place=True)
+
+        return _DH
 
     def freeze(self):
         """Method for freezing a dihypergraph which prevents it from being modified
 
         See Also
         --------
-        frozen : Method that raises an error when a user tries to modify the hypergraph
+        ~xgi.exception.frozen : Method that raises an error when a user tries to modify the hypergraph
         is_frozen : Check whether a dihypergraph is frozen
 
         Examples
@@ -1008,11 +1066,8 @@ class DiHypergraph:
         self.remove_nodes_from = frozen
         self.add_edge = frozen
         self.add_edges_from = frozen
-        self.add_weighted_edges_from = frozen
         self.remove_edge = frozen
         self.remove_edges_from = frozen
-        self.add_node_to_edge = frozen
-        self.remove_node_from_edge = frozen
         self.clear = frozen
         self.frozen = True
 

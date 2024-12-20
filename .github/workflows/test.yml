@@ -13,12 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -30,10 +30,55 @@ jobs:
         python -m pip install .
         python -m pip list
 
-    - name: Prepare tutorial notebooks
+    - name: Prepare case studies notebooks
       run: |
         # go into tutorial location
-        cd tutorials/
+        cd tutorials/case_studies
+        # convert each notebook into a python file
+        jupyter nbconvert --to script *.ipynb
+        # rename the files so they are found by pytest: add 'test' at the beginning
+        rename 's/(.*)\.py/test $1.py/' *
+        # rename the files so they are found by pytest: change spaces to underscores
+        rename 's/ /_/g' test*
+        # modify each file by adding one level of indentation to each line
+        sed -i 's/^/    /' test*.py
+        # modify each file by adding 'def test_func():' at the top
+        sed -i '1s;^;def test_func():\n;' test*.py
+    
+    - name: Prepare focus notebooks
+      run: |
+        # go into tutorial location
+        cd tutorials/focus
+        # convert each notebook into a python file
+        jupyter nbconvert --to script *.ipynb
+        # rename the files so they are found by pytest: add 'test' at the beginning
+        rename 's/(.*)\.py/test $1.py/' *
+        # rename the files so they are found by pytest: change spaces to underscores
+        rename 's/ /_/g' test*
+        # modify each file by adding one level of indentation to each line
+        sed -i 's/^/    /' test*.py
+        # modify each file by adding 'def test_func():' at the top
+        sed -i '1s;^;def test_func():\n;' test*.py
+    
+    - name: Prepare getting started notebooks
+      run: |
+        # go into tutorial location
+        cd tutorials/getting_started
+        # convert each notebook into a python file
+        jupyter nbconvert --to script *.ipynb
+        # rename the files so they are found by pytest: add 'test' at the beginning
+        rename 's/(.*)\.py/test $1.py/' *
+        # rename the files so they are found by pytest: change spaces to underscores
+        rename 's/ /_/g' test*
+        # modify each file by adding one level of indentation to each line
+        sed -i 's/^/    /' test*.py
+        # modify each file by adding 'def test_func():' at the top
+        sed -i '1s;^;def test_func():\n;' test*.py
+
+    - name: Prepare in-depth notebooks
+      run: |
+        # go into tutorial location
+        cd tutorials/in_depth
         # convert each notebook into a python file
         jupyter nbconvert --to script *.ipynb
         # rename the files so they are found by pytest: add 'test' at the beginning
@@ -48,7 +93,18 @@ jobs:
     - name: Test tutorial notebooks
       run: |
         # run pytest ONLY on the tutorials
-        cd tutorials/
+        cd tutorials
+
+        cd case_studies
+        pytest --color=yes
+
+        cd ../focus
+        pytest --color=yes
+
+        cd ../getting_started
+        pytest --color=yes
+
+        cd ../in_depth
         pytest --color=yes
 
   pytest:
@@ -56,21 +112,20 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu, macos, windows]
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install packages
       run: |
-        python -m pip install --upgrade pip wheel setuptools
-        python -m pip install -r requirements/default.txt -r requirements/test.txt -r requirements/documentation.txt
-        python -m pip install .
-        python -m pip list
+        pip install --upgrade pip
+        pip install .[test,docs]
+        pip list
 
     - name: Test XGI
       run: |

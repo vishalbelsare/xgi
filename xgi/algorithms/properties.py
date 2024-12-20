@@ -125,7 +125,7 @@ def is_uniform(H):
     if not edge_sizes or len(edge_sizes) != 1:
         return False
 
-    return edge_sizes.pop() - 1  # order of all edges
+    return int(edge_sizes.pop() - 1)  # order of all edges
 
 
 def edge_neighborhood(H, n, include_self=False):
@@ -152,7 +152,7 @@ def edge_neighborhood(H, n, include_self=False):
 
     See Also
     --------
-    neighbors
+    ~xgi.core.views.IDView.neighbors
 
     Examples
     --------
@@ -259,10 +259,10 @@ def unique_edge_sizes(H):
 
     Returns
     -------
-    list()
+    list of int
         The unique edge sizes in ascending order by size.
     """
-    return sorted(set(H.edges.size.asnumpy()))
+    return sorted(set(H.edges.size.aslist()))
 
 
 def density(H, order=None, max_order=None, ignore_singletons=False):

@@ -8,7 +8,6 @@ from itertools import chain, combinations, count
 import numpy as np
 import pandas as pd
 import requests
-from numpy import infty
 
 from xgi.exception import IDNotFound, XGIError
 
@@ -24,6 +23,7 @@ __all__ = [
     "convert_labels_to_integers",
     "hist",
     "binomial_sequence",
+    "get_network_type",
 ]
 
 
@@ -54,6 +54,11 @@ class IDDict(dict):
             return dict.__delitem__(self, item)
         except KeyError as e:
             raise IDNotFound(f"ID {item} not found") from e
+
+    def __add__(self, dict):
+        d = dict.copy()
+        d.update(self)
+        return d
 
 
 def dual_dict(edge_dict):
@@ -145,7 +150,7 @@ def powerset(
     return chain.from_iterable(combinations(s, r) for r in range(start, max_size + 1))
 
 
-def update_uid_counter(H, new_id):
+def update_uid_counter(H, idx):
     """
     Helper function to make sure the uid counter is set correctly after
     adding an edge with a user-provided ID.
@@ -160,19 +165,19 @@ def update_uid_counter(H, new_id):
     ----------
     H : xgi.Hypergraph
         Hypergraph of which to update the uid counter
-    id : any hashable type
+    idx : any hashable type
         User-provided ID.
 
     """
     uid = next(H._edge_uid)
     if (
-        not isinstance(new_id, str)
-        and not isinstance(new_id, tuple)
-        and float(new_id).is_integer()
-        and uid <= new_id
+        not isinstance(idx, str)
+        and not isinstance(idx, tuple)
+        and float(idx).is_integer()
+        and uid <= idx
     ):
         # tuple comes from merging edges and doesn't have as as_integer() method.
-        start = int(new_id) + 1
+        start = int(idx) + 1
         # we set the start at one plus the maximum edge ID that is an integer,
         # because count() only yields integer IDs.
     else:
@@ -220,12 +225,12 @@ def min_where(dicty, where):
 
     Return
     ------
-    min_val : float or np.Inf
-        Minimum value found in `dicty`. Is set to np.infty if `where` indicated
-        nowhere or if all values are `np.infty`.
+    min_val : float or np.inf
+        Minimum value found in `dicty`. Is set to np.inf if `where` indicated
+        nowhere or if all values are `np.inf`.
     """
 
-    min_val = infty
+    min_val = np.inf
     for key in dicty.keys():
         if where[key]:
             if dicty[key] < min_val:
@@ -365,7 +370,7 @@ def subfaces(edges, order=None):
     return faces
 
 
-def convert_labels_to_integers(net, label_attribute="label"):
+def convert_labels_to_integers(net, label_attribute="label", in_place=False):
     """Relabel node and edge IDs to be sequential integers.
 
     Parameters
@@ -375,6 +380,10 @@ def convert_labels_to_integers(net, label_attribute="label"):
 
     label_attribute : string, default: "label"
         The attribute name that stores the old node and edge labels
+
+    in_place : bool, optional
+        Whether the relabeling should modify the network in-place or return a new
+        network.
 
     Returns
     -------
@@ -393,46 +402,50 @@ def convert_labels_to_integers(net, label_attribute="label"):
     node_dict = dict(zip(net.nodes, range(net.num_nodes)))
     edge_dict = dict(zip(net.edges, range(net.num_edges)))
 
-    temp_net = net.__class__()
-    temp_net._hypergraph = deepcopy(net._hypergraph)
+    if not in_place:
+        net = net.copy()
 
-    temp_net.add_nodes_from((id, deepcopy(net.nodes[n])) for n, id in node_dict.items())
-    temp_net.set_node_attributes(
-        {n: {label_attribute: id} for id, n in node_dict.items()}
-    )
+    node_attrs = net._node_attr.copy()
+    edge_attrs = net._edge_attr.copy()
+    edges = net._edge.copy()
+    net.clear(remove_net_attr=False)
+    net.add_nodes_from((idx, deepcopy(node_attrs[n])) for n, idx in node_dict.items())
+    net.set_node_attributes({idx: {label_attribute: n} for n, idx in node_dict.items()})
     if isinstance(net, SimplicialComplex):
-        temp_net.add_simplices_from(
+        net.add_simplices_from(
             (
-                {node_dict[n] for n in e},
-                edge_dict[id],
-                deepcopy(net.edges[id]),
+                {node_dict[n] for n in edge},
+                edge_dict[e],
+                deepcopy(edge_attrs[e]),
             )
-            for id, e in net.edges.members(dtype=dict).items()
+            for e, edge in edges.items()
         )
     elif isinstance(net, Hypergraph):
-        temp_net.add_edges_from(
+        net.add_edges_from(
             (
-                {node_dict[n] for n in e},
-                edge_dict[id],
-                deepcopy(net.edges[id]),
+                {node_dict[n] for n in edge},
+                edge_dict[e],
+                deepcopy(edge_attrs[e]),
             )
-            for id, e in net.edges.members(dtype=dict).items()
+            for e, edge in edges.items()
         )
     elif isinstance(net, DiHypergraph):
-        temp_net.add_edges_from(
+        net.add_edges_from(
             (
-                [{node_dict[n] for n in tail}, {node_dict[n] for n in head}],
-                edge_dict[id],
-                deepcopy(net.edges[id]),
+                [
+                    {node_dict[n] for n in edge["in"]},
+                    {node_dict[n] for n in edge["out"]},
+                ],
+                edge_dict[e],
+                deepcopy(edge_attrs[e]),
             )
-            for id, (tail, head) in net.edges.dimembers(dtype=dict).items()
+            for e, edge in edges.items()
         )
 
-    temp_net.set_edge_attributes(
-        {e: {label_attribute: id} for id, e in edge_dict.items()}
-    )
+    net.set_edge_attributes({idx: {label_attribute: e} for e, idx in edge_dict.items()})
 
-    return temp_net
+    if not in_place:
+        return net
 
 
 def hist(vals, bins=10, bin_edges=False, density=False, log_binning=False):
@@ -440,9 +453,9 @@ def hist(vals, bins=10, bin_edges=False, density=False, log_binning=False):
 
     Parameters
     ----------
-    vals : Numpy array
+    vals : numpy.ndarray
         The array of values
-    bins : int, list, or Numpy array
+    bins : int, list, or numpy.ndarray
         The number of bins or the bin edges.
         By default, 10.
     bin_edges : bool
@@ -457,7 +470,7 @@ def hist(vals, bins=10, bin_edges=False, density=False, log_binning=False):
 
     Returns
     -------
-    Pandas DataFrame
+    ~pandas.DataFrame
         A two-column table with "bin_center" and "value" columns,
         where "value" is a count or a probability. If `bin_edges`
         is True, outputs two additional columns, `bin_lo` and `bin_hi`,
@@ -536,3 +549,7 @@ def binomial_sequence(k, N):
         for seq in binomial_sequence(k - 1, N - 1):
             res.add(seq + "1")
     return res
+
+
+def get_network_type(H):
+    return str(type(H)).split(".")[-1].split("'")[0].lower()

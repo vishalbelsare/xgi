@@ -49,7 +49,7 @@ def test_constructor(edgelist5, dict5, incidence5, dataframe5):
 
 def test_hypergraph_attrs():
     H = xgi.Hypergraph()
-    assert H._hypergraph == {}
+    assert H._net_attr == {}
     with pytest.raises(XGIError):
         H["name"]
     H = xgi.Hypergraph(name="test")
@@ -169,8 +169,6 @@ def test_memberships(edgelist1):
     assert H.nodes([1, 2, 6]).memberships() == {1: {0}, 2: {0}, 6: {2, 3}}
     with pytest.raises(IDNotFound):
         H.nodes.memberships(0)
-    with pytest.raises(TypeError):
-        H.nodes.memberships(slice(1, 4))
 
 
 def test_add_edge():
@@ -183,15 +181,17 @@ def test_add_edge():
         assert {1, 2, 3} == H.edges.members(0)
         assert H.edges.members(dtype=dict) == {0: {1, 2, 3}}
 
+    # test adding empty edges
     H = xgi.Hypergraph()
     for edge in [[], set(), iter([])]:
-        with pytest.raises(XGIError):
-            H.add_edge(edge)
+        H.add_edge(edge)
+
+    assert H.edges.size.asdict() == {0: 0, 1: 0, 2: 0}
 
     # check that uid works correctly
     H1 = xgi.Hypergraph()
-    H1.add_edge([1, 2], id=0)
-    H1.add_edge([3, 4], id=2)
+    H1.add_edge([1, 2], idx=0)
+    H1.add_edge([3, 4], idx=2)
     H1.add_edge([5, 6])
     assert H1._edge == {0: {1, 2}, 2: {3, 4}, 3: {5, 6}}
 
@@ -201,14 +201,14 @@ def test_add_edge():
     with pytest.warns(
         UserWarning, match="uid 0 already exists, cannot add edge {5, 6}"
     ):
-        H2.add_edge([5, 6], id=0)
+        H2.add_edge([5, 6], idx=0)
 
     assert H2._edge == {0: {1, 2}, 1: {3, 4}}
 
 
 def test_add_edge_with_id():
     H = xgi.Hypergraph()
-    H.add_edge([1, 2, 3], id="myedge")
+    H.add_edge([1, 2, 3], idx="myedge")
     assert (1 in H) and (2 in H) and (3 in H)
     assert "myedge" in H.edges
     assert {1, 2, 3} in H.edges.members()
@@ -236,6 +236,41 @@ def test_add_node_to_edge():
         "fruits": {"apple", "banana", "pear"},
         "veggies": {"lettuce"},
     }
+
+
+def test_remove_node_from_edge(edgelist1):
+    H = xgi.Hypergraph(edgelist1)
+
+    # test non-existent node
+    with pytest.raises(XGIError):
+        H.remove_node_from_edge(1, 1000)
+
+    # test non-existent edge
+    with pytest.raises(XGIError):
+        H.remove_node_from_edge(1000, 1)
+
+    # test node which exists, but not in the edge
+    with pytest.raises(XGIError):
+        H.remove_node_from_edge(1, 1)
+
+    H.remove_node_from_edge(0, 1)
+    assert 1 not in H.edges.members(0)
+
+    with pytest.raises(XGIError):
+        H.remove_node_from_edge(0, 1)
+
+    H.remove_node_from_edge(0, 2)
+    H.remove_node_from_edge(0, 3)
+
+    assert 0 not in H.edges
+
+    # test leaving empty edges
+    H = xgi.Hypergraph(edgelist1)
+    H.remove_node_from_edge(0, 1)
+    H.remove_node_from_edge(0, 2)
+    H.remove_node_from_edge(0, 3, remove_empty=False)
+    assert 0 in H.edges
+    assert H.edges.members(0) == set()
 
 
 def test_add_edges_from_iterable_of_members():
@@ -416,7 +451,7 @@ def test_copy(edgelist1):
     assert list(copy.nodes) == list(H.nodes)
     assert list(copy.edges) == list(H.edges)
     assert list(copy.edges.members()) == list(H.edges.members())
-    assert H._hypergraph == copy._hypergraph
+    assert H._net_attr == copy._net_attr
 
     H.add_node(10)
     assert list(copy.nodes) != list(H.nodes)
@@ -426,7 +461,7 @@ def test_copy(edgelist1):
     assert list(copy.edges) != list(H.edges)
 
     H["key2"] = "value2"
-    assert H._hypergraph != copy._hypergraph
+    assert H._net_attr != copy._net_attr
 
     copy.add_node(10)
     copy.add_edge([1, 3, 5])
@@ -434,15 +469,15 @@ def test_copy(edgelist1):
     assert list(copy.nodes) == list(H.nodes)
     assert list(copy.edges) == list(H.edges)
     assert list(copy.edges.members()) == list(H.edges.members())
-    assert H._hypergraph == copy._hypergraph
+    assert H._net_attr == copy._net_attr
 
     H1 = xgi.Hypergraph()
-    H1.add_edge((1, 2), id="x")
+    H1.add_edge((1, 2), idx="x")
     copy2 = H1.copy()  # does not throw error because of str id
     assert list(copy2.nodes) == list(H1.nodes)
     assert list(copy2.edges) == list(H1.edges)
     assert list(copy2.edges.members()) == list(H1.edges.members())
-    assert H1._hypergraph == copy2._hypergraph
+    assert H1._net_attr == copy2._net_attr
 
 
 def test_copy_issue128():
@@ -478,6 +513,70 @@ def test_double_edge_swap(edgelist1):
     H = xgi.Hypergraph(edgelist1)
     with pytest.raises(XGIError):
         H.double_edge_swap(6, 7, 2, 3)
+
+
+def test_random_edge_shuffle(edgelist4):
+    # trivial hypergraph
+    H0 = xgi.trivial_hypergraph()
+    with pytest.raises(ValueError):
+        H0.random_edge_shuffle()
+
+    # hypergraph with only two edges
+    S = xgi.Hypergraph([[0, 1, 2, 3], [2, 3, 5, 6, 8]])
+    H = S.copy()
+    H.random_edge_shuffle()
+
+    # the intersection of the two edges is preserved
+    assert {2, 3}.issubset(H._edge[0])
+    assert {2, 3}.issubset(H._edge[1])
+
+    # edge sizes are preserved
+    assert len(H._edge[0]) == len(S._edge[0])
+    assert len(H._edge[1]) == len(S._edge[1])
+
+    # verify dual of edge dict is nodes dict
+    assert xgi.utilities.dual_dict(H._edge) == H._node
+
+    # hypergraph with more than two edges
+    S = xgi.Hypergraph(edgelist4)
+    H = S.copy()
+
+    # specify edges to shuffle
+    H.random_edge_shuffle(e_id1=0, e_id2=1)
+
+    # not shuffled edges are preserved
+    assert H._edge[2] == S._edge[2]
+
+    # the intersection of the two edges is preserved
+    assert {2, 3}.issubset(H._edge[0])
+    assert {2, 3}.issubset(H._edge[1])
+
+    # edge sizes are preserved
+    for edge_id in H._edge:
+        assert len(H._edge[edge_id]) == len(S._edge[edge_id])
+
+    # verify dual of edge dict is nodes dict
+    assert xgi.utilities.dual_dict(H._edge) == H._node
+
+    # random hypergraph
+    S = xgi.random_hypergraph(50, [0.1, 0.01, 0.001], seed=1)
+    H = S.copy()
+    H.random_edge_shuffle()
+
+    # number of nodes and edges are preserved
+    assert H.num_nodes == S.num_nodes
+    assert H.num_edges == S.num_edges
+
+    # all edge sizes are preserved
+    for edge_id in H._edge:
+        assert len(H._edge[edge_id]) == len(S._edge[edge_id])
+
+    # all node degrees are preserved
+    for node_id in H._node:
+        assert len(H._node[node_id]) == len(S._node[node_id])
+
+    # verify dual of edge dict is nodes dict
+    assert xgi.utilities.dual_dict(H._edge) == H._node
 
 
 def test_duplicate_edges(edgelist1):
@@ -521,6 +620,15 @@ def test_remove_node_weak(edgelist1):
     with pytest.raises(IDNotFound):
         H.remove_node(10)
 
+    # test keeping empty edges
+    H = xgi.Hypergraph(edgelist1)
+    H.remove_node(1)
+    H.remove_node(2)
+    H.remove_node(3, remove_empty=False)
+    H.remove_node(4, remove_empty=False)
+    assert 0 in H.edges and 1 in H.edges
+    assert H.edges.size[0] == 0 and H.edges.size[1] == 0
+
 
 def test_remove_node_strong(edgelist1):
     H = xgi.Hypergraph(edgelist1)
@@ -528,6 +636,27 @@ def test_remove_node_strong(edgelist1):
     H.remove_node(1, strong=True)
     assert 1 not in H
     assert 0 not in H.edges
+
+
+def test_remove_nodes_from(edgelist1):
+    H = xgi.Hypergraph(edgelist1)
+
+    H.remove_nodes_from([1, 2, 3])
+    assert 1 not in H and 2 not in H and 3 not in H
+    assert 0 not in H.edges
+
+    with pytest.warns(Warning):
+        H.remove_nodes_from([1, 2, 3])
+
+    H = xgi.Hypergraph(edgelist1)
+
+    H.remove_nodes_from([1, 4], strong=True)
+    assert 0 not in H.edges and 1 not in H.edges
+
+    H = xgi.Hypergraph(edgelist1)
+    H.remove_nodes_from([1, 2, 3, 4], remove_empty=False)
+    assert 0 in H.edges and 1 in H.edges
+    assert H.edges.size[0] == 0 and H.edges.size[1] == 0
 
 
 def test_issue_445(edgelist1):
@@ -609,8 +738,8 @@ def test_pickle(edgelist1):
 
     assert H1.nodes == H2.nodes
     assert H1.edges == H2.edges
-    assert [H1.edges.members(id) for id in H1.edges] == [
-        H2.edges.members(id) for id in H2.edges
+    assert [H1.edges.members(e) for e in H1.edges] == [
+        H2.edges.members(e) for e in H2.edges
     ]
 
 
@@ -742,6 +871,18 @@ def test_set_edge_attributes(edgelist1):
         H3.set_edge_attributes({"test": {2: "weight"}})
 
 
+def test_480(edgelist1):
+    H1 = xgi.Hypergraph(edgelist1)
+    attr_dict1 = {
+        0: 1,
+        1: 2,
+        2: 3,
+        3: -1,
+    }
+    H1.set_edge_attributes(attr_dict1, "weight")
+    assert H1.edges.attrs("weight").asdict() == attr_dict1
+
+
 def test_cleanup():
     H = xgi.Hypergraph()
     H.add_edges_from([["a", "b", "c"], ["a", "b", "c"], ["e", "f"]])
@@ -807,11 +948,13 @@ def test_cleanup():
 
     # test relabel
     cleanH = H.copy()
+    cleanH["name"] = "test"
     cleanH.cleanup(connected=False)
     assert set(cleanH.nodes) == {0, 1, 2, 3, 4}
     assert cleanH.num_edges == 2
     edges = cleanH.edges.members()
     assert {0, 1, 2} in edges
     assert {3, 4} in edges
+    assert cleanH["name"] == "test"
 
     assert cleanH._edge == xgi.dual_dict(cleanH._node)

@@ -3,8 +3,8 @@
 This module is part of the stats package, and it defines node-level statistics.  That
 is, each function defined in this module is assumed to define a node-quantity mapping.
 Each callable defined here is accessible via a `Network` object, or a
-:class:`~xgi.core.reportviews.NodeView` object.  For more details, see the `tutorial
-<https://github.com/ComplexGroupInteractions/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+:class:`~xgi.core.views.NodeView` object.  For more details, see the `tutorial
+<https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
 Examples
 --------
@@ -31,7 +31,9 @@ __all__ = [
     "two_node_clustering_coefficient",
     "clique_eigenvector_centrality",
     "h_eigenvector_centrality",
+    "z_eigenvector_centrality",
     "node_edge_centrality",
+    "katz_centrality",
 ]
 
 
@@ -264,7 +266,7 @@ def local_clustering_coefficient(net, bunch):
     >>> import xgi
     >>> H = xgi.random_hypergraph(3, [1, 1])
     >>> H.nodes.local_clustering_coefficient.asdict()
-    {0: 1.0, 1: 1.0, 2: 1.0}
+    {0: 0.3333333333333333, 1: 0.3333333333333333, 2: 0.3333333333333333}
 
     """
     cc = xgi.local_clustering_coefficient(net)
@@ -346,6 +348,9 @@ def clique_eigenvector_centrality(net, bunch, tol=1e-6):
 def h_eigenvector_centrality(net, bunch, max_iter=10, tol=1e-6):
     """Compute the H-eigenvector centrality of a hypergraph.
 
+    The H-eigenvector terminology comes from Qi (2005) which
+    defines a "tensor H-eigenpair".
+
     Parameters
     ----------
     net : xgi.Hypergraph
@@ -367,8 +372,54 @@ def h_eigenvector_centrality(net, bunch, max_iter=10, tol=1e-6):
     Three Hypergraph Eigenvector Centralities,
     Austin R. Benson,
     https://doi.org/10.1137/18M1203031
+
+    Scalable Tensor Methods for Nonuniform Hypergraphs,
+    Sinan Aksoy, Ilya Amburg, Stephen Young,
+    https://doi.org/10.1137/23M1584472
+
+    Liqun Qi
+    "Eigenvalues of a real supersymmetric tensor"
+    Journal of Symbolic Computation, **40**, *6* (2005).
+    https://doi.org/10.1016/j.jsc.2005.05.007.
     """
     c = xgi.h_eigenvector_centrality(net, max_iter, tol)
+    return {n: c[n] for n in c if n in bunch}
+
+
+def z_eigenvector_centrality(net, bunch, max_iter=10, tol=1e-6):
+    r"""Compute the Z-eigenvector centrality of a hypergraph.
+
+    The Z-eigenvector terminology comes from Qi (2005) which
+    defines a "tensor Z-eigenpair".
+
+    Parameters
+    ----------
+    net : xgi.Hypergraph
+        The hypergraph of interest.
+    bunch : Iterable
+        Nodes in `net`.
+    max_iter : int, default: 10
+        The maximum number of iterations before the algorithm terminates.
+    tol : float > 0, default: 1e-6
+        The desired L2 error in the centrality vector.
+
+    Returns
+    -------
+    dict
+        Centrality, where keys are node IDs and values are centralities.
+
+    References
+    ----------
+    Three Hypergraph Eigenvector Centralities,
+    Austin R. Benson,
+    https://doi.org/10.1137/18M1203031
+
+    Liqun Qi
+    "Eigenvalues of a real supersymmetric tensor"
+    Journal of Symbolic Computation, **40**, *6* (2005).
+    https://doi.org/10.1016/j.jsc.2005.05.007.
+    """
+    c = xgi.z_eigenvector_centrality(net, max_iter, tol)
     return {n: c[n] for n in c if n in bunch}
 
 
@@ -382,7 +433,7 @@ def node_edge_centrality(
     max_iter=100,
     tol=1e-6,
 ):
-    """Computes node centralities.
+    """Computes nonlinear node-edge centralities.
 
     Parameters
     ----------
@@ -432,3 +483,177 @@ def node_edge_centrality(
     """
     c, _ = xgi.node_edge_centrality(net, f, g, phi, psi, max_iter, tol)
     return {n: c[n] for n in c if n in bunch}
+
+
+def katz_centrality(net, bunch, cutoff=100):
+    r"""Compute the Katz centrality of a hypergraph.
+
+    Parameters
+    ----------
+    net : xgi.Hypergraph
+        The hypergraph of interest.
+    bunch : Iterable
+        Nodes in `net`.
+    cutoff : int
+        Power at which to stop the series :math:`A + \alpha A^2 + \alpha^2 A^3 + \dots`
+        Default value is 100.
+
+    Returns
+    -------
+    dict
+        node IDs are keys and centrality values
+        are values. The centralities are 1-normalized.
+
+    Raises
+    ------
+    XGIError
+        If the hypergraph is empty.
+
+    Notes
+    -----
+    [1] The Katz-centrality is defined as
+
+    .. math::
+        c = [(I - \alpha A^{t})^{-1} - I]{\bf 1},
+
+    where :math:`A` is the adjacency matrix of the the (hyper)graph.
+    Since :math:`A^{t} = A` for undirected graphs (our case), we have:
+
+
+    .. math::
+        &[I + A + \alpha A^2 + \alpha^2 A^3 + \dots](I - \alpha A^{t})
+
+        & = [I + A + \alpha A^2 + \alpha^2 A^3 + \dots](I - \alpha A)
+
+        & = (I + A + \alpha A^2 + \alpha^2 A^3 + \dots) - A - \alpha A^2
+
+        & - \alpha^2 A^3 - \alpha^3 A^4 - \dots
+
+        & = I
+
+    And :math:`(I - \alpha A^{t})^{-1} = I + A + \alpha A^2 + \alpha^2 A^3 + \dots`
+    Thus we can use the power series to compute the Katz-centrality.
+    [2] The Katz-centrality of isolated nodes (no hyperedges contains them) is
+    zero. The Katz-centrality of an empty hypergraph is not defined.
+
+    References
+    ----------
+    See https://en.wikipedia.org/wiki/Katz_centrality#Alpha_centrality (visited
+    May 20 2023) for a clear definition of Katz centrality.
+    """
+    c = xgi.katz_centrality(net, cutoff=cutoff)
+    return {n: c[n] for n in c if n in bunch}
+
+
+def local_simplicial_fraction(net, bunch, min_size=2, exclude_min_size=True):
+    """The local simplicial fraction.
+
+    Parameters
+    ----------
+    net : xgi.Hypergraph
+        The network.
+    bunch : Iterable
+        Nodes in `net`.
+    min_size: int, default: 2
+        The minimum hyperedge size to include when
+        calculating whether a hyperedge is a simplex
+        by counting subfaces.
+    exclude_min_size : bool, optional
+        Whether to include minimal simplices when counting simplices, by default True
+
+    Returns
+    -------
+    dict
+
+    References
+    ----------
+    "The simpliciality of higher-order order networks"
+    by Nicholas Landry, Jean-Gabriel Young, and Nicole Eikmeier,
+    *EPJ Data Science* **13**, 17 (2024).
+    """
+    s = dict()
+    for n in bunch:
+        nbrs = net.nodes.neighbors(n)
+        if len(nbrs) == 0:
+            s[n] = np.nan
+        else:
+            nbrs.add(n)
+            sh = xgi.subhypergraph(net, nodes=nbrs)
+            s[n] = xgi.simplicial_fraction(sh, min_size, exclude_min_size)
+    return s
+
+
+def local_edit_simpliciality(net, bunch, min_size=2, exclude_min_size=True):
+    """The local edit simpliciality.
+
+    Parameters
+    ----------
+    net : xgi.Hypergraph
+        The network.
+    bunch : Iterable
+        Nodes in `net`.
+    min_size: int, default: 2
+        The minimum hyperedge size to include when
+        calculating whether a hyperedge is a simplex
+        by counting subfaces.
+    exclude_min_size : bool, optional
+        Whether to include minimal simplices when counting simplices, by default True
+
+    Returns
+    -------
+    dict
+
+    References
+    ----------
+    "The simpliciality of higher-order order networks"
+    by Nicholas Landry, Jean-Gabriel Young, and Nicole Eikmeier,
+    *EPJ Data Science* **13**, 17 (2024).
+    """
+    s = dict()
+    for n in bunch:
+        nbrs = net.nodes.neighbors(n)
+        if len(nbrs) == 0:
+            s[n] = np.nan
+        else:
+            nbrs.add(n)
+            sh = xgi.subhypergraph(net, nodes=nbrs)
+            s[n] = xgi.edit_simpliciality(sh, min_size, exclude_min_size)
+    return s
+
+
+def local_face_edit_simpliciality(net, bunch, min_size=2, exclude_min_size=True):
+    """The local face edit simpliciality.
+
+    Parameters
+    ----------
+    net : xgi.Hypergraph
+        The network.
+    bunch : Iterable
+        Nodes in `net`.
+    min_size: int, default: 2
+        The minimum hyperedge size to include when
+        calculating whether a hyperedge is a simplex
+        by counting subfaces.
+    exclude_min_size : bool, optional
+        Whether to include minimal simplices when counting simplices, by default True
+
+    Returns
+    -------
+    dict
+
+    References
+    ----------
+    "The simpliciality of higher-order order networks"
+    by Nicholas Landry, Jean-Gabriel Young, and Nicole Eikmeier,
+    *EPJ Data Science* **13**, 17 (2024).
+    """
+    s = dict()
+    for n in bunch:
+        nbrs = net.nodes.neighbors(n)
+        if len(nbrs) == 0:
+            s[n] = np.nan
+        else:
+            nbrs.add(n)
+            sh = xgi.subhypergraph(net, nodes=nbrs)
+            s[n] = xgi.face_edit_simpliciality(sh, min_size, exclude_min_size)
+    return s

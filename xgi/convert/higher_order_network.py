@@ -15,6 +15,7 @@ from scipy.sparse import (
     lil_matrix,
 )
 
+from ..algorithms.properties import max_edge_order
 from ..core import DiHypergraph, Hypergraph, SimplicialComplex
 from ..exception import XGIError
 from ..generators import empty_dihypergraph, empty_hypergraph, empty_simplicial_complex
@@ -24,13 +25,14 @@ from .pandas import from_bipartite_pandas_dataframe
 from .simplex import from_simplex_dict
 
 __all__ = [
-    "convert_to_hypergraph",
-    "convert_to_dihypergraph",
-    "convert_to_simplicial_complex",
+    "to_hypergraph",
+    "to_dihypergraph",
+    "to_simplicial_complex",
+    "cut_to_order",
 ]
 
 
-def convert_to_hypergraph(data, create_using=None):
+def to_hypergraph(data, create_using=None):
     """Make a hypergraph from a known data structure.
 
     The preferred way to call this is automatically from the class constructor.
@@ -58,7 +60,7 @@ def convert_to_hypergraph(data, create_using=None):
 
     See Also
     --------
-    from_max_simplices : Constructs a hypergraph from the maximal simplices of a simplicial complex.
+    ~xgi.utils.utilities.from_max_simplices : Constructs a hypergraph from the maximal simplices of a simplicial complex.
 
     """
     if data is None:
@@ -69,7 +71,7 @@ def convert_to_hypergraph(data, create_using=None):
         H.add_nodes_from((n, attr) for n, attr in data.nodes.items())
         ee = data.edges
         H.add_edges_from((ee.members(e), e, deepcopy(attr)) for e, attr in ee.items())
-        H._hypergraph = deepcopy(data._hypergraph)
+        H._net_attr = deepcopy(data._net_attr)
         return H
 
     elif isinstance(data, DiHypergraph):
@@ -77,7 +79,7 @@ def convert_to_hypergraph(data, create_using=None):
         H.add_nodes_from((n, attr) for n, attr in data.nodes.items())
         ee = data.edges
         H.add_edges_from((ee.members(e), e, deepcopy(attr)) for e, attr in ee.items())
-        H._hypergraph = deepcopy(data._hypergraph)
+        H._net_attr = deepcopy(data._net_attr)
         if not isinstance(create_using, DiHypergraph):
             return H
 
@@ -86,7 +88,7 @@ def convert_to_hypergraph(data, create_using=None):
         H.add_nodes_from((n, attr) for n, attr in data.nodes.items())
         ee = data.edges
         H.add_edges_from((ee.members(e), e, deepcopy(attr)) for e, attr in ee.items())
-        H._hypergraph = deepcopy(data._hypergraph)
+        H._net_attr = deepcopy(data._net_attr)
         return H
 
     elif isinstance(data, list):
@@ -127,7 +129,7 @@ def convert_to_hypergraph(data, create_using=None):
         raise XGIError("Input data has unsupported type.")
 
 
-def convert_to_dihypergraph(data, create_using=None):
+def to_dihypergraph(data, create_using=None):
     """Make a dihypergraph from a known data structure.
 
     The preferred way to call this is automatically from the class constructor.
@@ -161,7 +163,7 @@ def convert_to_dihypergraph(data, create_using=None):
         H.add_nodes_from((n, attr) for n, attr in data.nodes.items())
         ee = data.edges
         H.add_edges_from((ee.dimembers(e), e, deepcopy(attr)) for e, attr in ee.items())
-        H._hypergraph = deepcopy(data._hypergraph)
+        H._net_attr = deepcopy(data._net_attr)
         if not isinstance(create_using, DiHypergraph):
             return H
 
@@ -184,7 +186,7 @@ def convert_to_dihypergraph(data, create_using=None):
 from ..generators import empty_simplicial_complex
 
 
-def convert_to_simplicial_complex(data, create_using=None):
+def to_simplicial_complex(data, create_using=None):
     """Make a hypergraph from a known data structure.
     The preferred way to call this is automatically
     from the class constructor.
@@ -222,7 +224,7 @@ def convert_to_simplicial_complex(data, create_using=None):
         H.add_simplices_from(
             (ee.members(e), e, deepcopy(attr)) for e, attr in ee.items()
         )
-        H._hypergraph = deepcopy(data._hypergraph)
+        H._net_attr = deepcopy(data._net_attr)
         return H
 
     elif isinstance(data, Hypergraph):
@@ -238,17 +240,17 @@ def convert_to_simplicial_complex(data, create_using=None):
         # edge list
         result = from_hyperedge_list(data, create_using)
         if not isinstance(create_using, SimplicialComplex):
-            return convert_to_simplicial_complex(result)
+            return to_simplicial_complex(result)
 
     elif isinstance(data, pd.DataFrame):
         result = from_bipartite_pandas_dataframe(data, create_using)
         if not isinstance(create_using, SimplicialComplex):
-            return convert_to_simplicial_complex(result)
+            return to_simplicial_complex(result)
 
     elif isinstance(data, dict):
         result = from_simplex_dict(data, create_using)
         if not isinstance(create_using, SimplicialComplex):
-            return convert_to_simplicial_complex(result)
+            return to_simplicial_complex(result)
     elif isinstance(
         data,
         (
@@ -270,3 +272,31 @@ def convert_to_simplicial_complex(data, create_using=None):
         )
     else:
         raise XGIError("Input data has unsupported type.")
+
+
+def cut_to_order(H, order):
+    """Returns a copy of the higher-order network with edges of order less than or equal to the given order.
+
+    Parameters
+    ----------
+    H : Hypergraph
+        The higher-order network to cut
+    order : int
+        The order of the edges to keep
+    Returns
+    -------
+    Hypergraph object
+        A copy of the higher-order network with edges of order less than or equal to the given order
+
+    """
+    _H = H.copy()
+    max_order = max_edge_order(H)
+    if order > max_order:
+        raise XGIError(f"The order must be less than or equal to {max_order}")
+    if order != max_order:
+        bunch = _H.edges.filterby("order", order, "gt")
+        if type(_H) == SimplicialComplex:
+            _H.remove_simplex_ids_from(bunch)
+        else:
+            _H.remove_edges_from(bunch)
+    return _H
