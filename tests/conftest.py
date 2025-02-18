@@ -136,6 +136,37 @@ def bipartite_graph4():
 
 
 @pytest.fixture
+def bipartite_digraph1():
+    G = nx.DiGraph()
+    G.add_nodes_from([1, 2, 3, 4], bipartite=0)
+    G.add_nodes_from(["a", "b", "c"], bipartite=1)
+    G.add_edges_from(
+        [
+            ("a", 1),
+            (1, "b"),
+            ("b", 2),
+            (2, "c"),
+            ("c", 3),
+            (4, "a"),
+        ]
+    )
+    return G
+
+
+@pytest.fixture
+def bipartite_digraph2():
+    G = nx.DiGraph()
+    G.add_nodes_from([1], bipartite=0)
+    G.add_nodes_from(["a"], bipartite=1)
+    G.add_edges_from(
+        [
+            ("a", 1, {"direction": "invalid"}),
+        ]
+    )
+    return G
+
+
+@pytest.fixture
 def attr0():
     return {"color": "brown", "name": "camel"}
 
@@ -223,7 +254,7 @@ def hypergraph2():
 def simplicialcomplex1():
     S = xgi.SimplicialComplex()
     S.add_nodes_from(["b", "c", 0])
-    S.add_edges_from(
+    S.add_simplices_from(
         {"e1": [0, "b"], "e2": [0, "c"], "e3": [0, "b", "c"], "e4": ["b", "c"]}
     )
     return S
@@ -270,3 +301,36 @@ def dihyperwithattrs(diedgelist2, attr0, attr1, attr2, attr3, attr4, attr5):
     H.add_edges_from(diedgelist2)
     H.set_edge_attributes({0: attr3, 1: attr4, 2: attr5})
     return H
+
+
+### Fixtures for simpliciality
+
+
+@pytest.fixture
+def sc1_with_singletons():
+    return xgi.Hypergraph([{1}, {2}, {3}, {1, 2}, {1, 3}, {2, 3}, {1, 2, 3}])
+
+
+@pytest.fixture
+def h_missing_one_singleton():
+    return xgi.Hypergraph([{1}, {2}, {1, 2}, {1, 3}, {2, 3}, {1, 2, 3}])
+
+
+@pytest.fixture
+def h_missing_one_link():
+    return xgi.Hypergraph([{1}, {2}, {3}, {1, 3}, {2, 3}, {1, 2, 3}])
+
+
+@pytest.fixture
+def h_links_and_triangles():
+    return xgi.Hypergraph([{1, 3}, {2, 3}, {1, 2, 3}])
+
+
+@pytest.fixture
+def h_links_and_triangles2():
+    return xgi.Hypergraph([{1, 3}, {2, 3}, {1, 2, 3}, {1, 4}, {2, 3, 4}, {2, 4}])
+
+
+@pytest.fixture
+def h1():
+    return xgi.Hypergraph([{1, 2, 3}, {2, 3, 4, 5}, {5, 6, 7}, {5, 6}])

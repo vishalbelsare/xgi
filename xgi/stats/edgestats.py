@@ -3,8 +3,8 @@
 This module is part of the stats package, and it defines edge-level statistics.  That
 is, each function defined in this module is assumed to define an edge-quantity mapping.
 Each callable defined here is accessible via a `Network` object, or a
-:class:`~xgi.core.reportviews.EdgeView` object.  For more details, see the `tutorial
-<https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+:class:`~xgi.core.views.EdgeView` object.  For more details, see the `tutorial
+<https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
 Examples
 --------
@@ -177,8 +177,7 @@ def size(net, bunch, degree=None):
         return {e: len(net._edge[e]) for e in bunch}
     else:
         return {
-            e: len(n for n in net._edge[e] if len(net._node[n]) == degree)
-            for e in bunch
+            e: sum(len(net._node[n]) == degree for n in net._edge[e]) for e in bunch
         }
 
 

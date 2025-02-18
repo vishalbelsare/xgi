@@ -65,7 +65,7 @@ def test_add_simplex():
     S2.add_simplex([1, 2])
     S2.add_simplex([3, 4])
     with pytest.warns(UserWarning, match="uid 1 already exists, cannot add simplex"):
-        S2.add_simplex([5, 6], id=1)
+        S2.add_simplex([5, 6], idx=1)
     assert S2._edge == {0: frozenset({1, 2}), 1: frozenset({3, 4})}
 
 
@@ -389,7 +389,7 @@ def test_copy(edgelist1):
     assert list(copy.nodes) == list(H.nodes)
     assert list(copy.edges) == list(H.edges)
     assert list(copy.edges.members()) == list(H.edges.members())
-    assert H._hypergraph == copy._hypergraph
+    assert H._net_attr == copy._net_attr
 
     H.add_node(10)
     assert list(copy.nodes) != list(H.nodes)
@@ -399,7 +399,7 @@ def test_copy(edgelist1):
     assert list(copy.edges) != list(H.edges)
 
     H["key2"] = "value2"
-    assert H._hypergraph != copy._hypergraph
+    assert H._net_attr != copy._net_attr
 
     copy.add_node(10)
     copy.add_simplex([1, 3, 5])
@@ -407,15 +407,15 @@ def test_copy(edgelist1):
     assert list(copy.nodes) == list(H.nodes)
     assert list(copy.edges) == list(H.edges)
     assert list(copy.edges.members()) == list(H.edges.members())
-    assert H._hypergraph == copy._hypergraph
+    assert H._net_attr == copy._net_attr
 
     H1 = xgi.SimplicialComplex()
-    H1.add_simplex((1, 2), id="x")
+    H1.add_simplex((1, 2), idx="x")
     copy2 = H1.copy()  # does not throw error because of str id
     assert list(copy2.nodes) == list(H1.nodes)
     assert list(copy2.edges) == list(H1.edges)
     assert list(copy2.edges.members()) == list(H1.edges.members())
-    assert H1._hypergraph == copy2._hypergraph
+    assert H1._net_attr == copy2._net_attr
 
 
 def test_duplicate_edges(edgelist1):
@@ -448,8 +448,8 @@ def test_remove_simplex_id(edgelist6):
     S.add_simplices_from(edgelist6)
 
     # remove simplex and others it belongs to
-    id = list(S._edge.values()).index(frozenset({2, 3}))
-    S.remove_simplex_id(id)  # simplex {2, 3}
+    idx = list(S._edge.values()).index(frozenset({2, 3}))
+    S.remove_simplex_id(idx)  # simplex {2, 3}
     edges = [
         frozenset({0, 1, 2}),
         frozenset({0, 1}),
@@ -462,7 +462,7 @@ def test_remove_simplex_id(edgelist6):
     assert set(S.edges.members()) == set(edges)
 
 
-def test_remove_simplex_ids_from(edgelist6):
+def test_remove_simplex_ids_from(edgelist6, edgelist4):
     S = xgi.SimplicialComplex()
     S.add_simplices_from(edgelist6)
 
@@ -479,6 +479,12 @@ def test_remove_simplex_ids_from(edgelist6):
         frozenset({1, 3}),
     ]
     assert set(S.edges.members()) == set(edges)
+
+    # test issue 580
+    S1 = xgi.SimplicialComplex(edgelist4)
+    id_all = list(S1.edges)
+    S1.remove_simplex_ids_from(id_all)
+    assert S1.num_edges == 0
 
 
 def test_freeze(edgelist1):
@@ -567,7 +573,9 @@ def test_cleanup():
 
     # test relabel
     cleanSC = SC.copy()
+    cleanSC["name"] = "test"
     cleanSC.cleanup(connected=False)
+    assert cleanSC["name"] == "test"
     assert set(cleanSC.nodes) == {0, 1, 2, 3, 4}
     assert cleanSC.num_edges == 5
     simplices = cleanSC.edges.members()

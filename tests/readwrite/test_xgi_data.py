@@ -1,5 +1,6 @@
+import platform
+import sys
 import tempfile
-import time
 from os.path import join
 
 import pytest
@@ -8,6 +9,10 @@ from xgi import download_xgi_data, load_xgi_data, read_json
 from xgi.exception import XGIError
 
 
+@pytest.mark.skipif(
+    sys.version_info != (3, 12) and not platform.system() == "Linux",
+    reason="only need one test",
+)
 @pytest.mark.webtest
 @pytest.mark.slow
 def test_load_xgi_data(capfd):
@@ -48,10 +53,38 @@ def test_load_xgi_data(capfd):
     assert "email-enron" in out
     assert "congress-bills" in out
 
+    # test collection
+    collection = load_xgi_data("hyperbard")
+    assert len(collection) == 37
+    assert isinstance(collection, dict)
+    assert collection["as-you-like-it"].num_nodes == 30
+    assert collection["as-you-like-it"].num_edges == 80
 
+    # test HIF
+    H = load_xgi_data("recipe-rec")
+    assert H.num_nodes == 9271
+    assert H.num_edges == 77733
+
+
+@pytest.mark.skipif(
+    sys.version_info != (3, 12) and not platform.system() == "Linux",
+    reason="only need one test",
+)
+@pytest.mark.webtest
+@pytest.mark.slow
 def test_download_xgi_data():
     dir = tempfile.mkdtemp()
     download_xgi_data("email-enron", dir)
     H = read_json(join(dir, "email-enron.json"))
     H_online = load_xgi_data("email-enron")
     assert H.edges.members() == H_online.edges.members()
+
+    dir = tempfile.mkdtemp()
+    download_xgi_data("hyperbard", dir)
+    collection = read_json(join(dir, "collection_information.json"))
+
+    print(collection)
+    assert len(collection) == 37
+    assert isinstance(collection, dict)
+    assert collection["as-you-like-it"].num_nodes == 30
+    assert collection["as-you-like-it"].num_edges == 80

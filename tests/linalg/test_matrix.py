@@ -1,9 +1,11 @@
 import numpy as np
 import pytest
+from scipy.linalg import eigh, eigvalsh
 from scipy.sparse import csr_array
 from scipy.sparse.linalg import norm as spnorm
 
 import xgi
+from xgi.exception import XGIError
 
 
 def test_incidence_matrix(edgelist1, edgelist3, edgelist4):
@@ -253,6 +255,28 @@ def test_adjacency_matrix(edgelist1, edgelist4):
     A7 = xgi.adjacency_matrix(H1, order=2, sparse=False)
     A7_sp = xgi.adjacency_matrix(H1, order=2, sparse=True)
     assert np.all(A7 == A7_sp.todense())
+
+
+def test_fix_649():  # make sure diagonal is fully zero when sparse
+
+    H = xgi.load_xgi_data(dataset="email-enron")
+    H.cleanup(
+        isolates=True, singletons=False, connected=True, relabel=False, multiedges=False
+    )
+
+    weighted = True
+    order = 1
+
+    adj = xgi.adjacency_matrix(
+        H, order=order, sparse=False, weighted=weighted, index=False
+    )
+
+    adj_sparse = xgi.adjacency_matrix(
+        H, order=order, sparse=True, weighted=weighted, index=False
+    )
+    adj_sparse = adj_sparse.todense()
+
+    assert np.all(np.diag(adj_sparse) == 0)
 
 
 def test_laplacian(edgelist2, edgelist6):
@@ -605,24 +629,64 @@ def test_normalized_hypergraph_laplacian():
 
     assert isinstance(L2, np.ndarray)
     assert np.all(L1.toarray() == L2)
-    assert np.all(np.diag(L2) == 0.5)
+
+    # Eigenvalues are all non-negative
+    evals = eigh(L2, eigvals_only=True)
+    negative_evals = list(filter(lambda e: e < 0, evals))
+    assert (not negative_evals) or (np.allclose(negative_evals, 0))
 
     L3, d = xgi.normalized_hypergraph_laplacian(H, index=True)
-
     assert d == {0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8}
-    true_L = np.array(
+    assert np.allclose(L3.toarray(), L2)
+
+    # sqrt(d) is eigenvector with eigenvalue 0
+    sqrt_d = np.array([np.sqrt(d) for d in H.nodes.degree.aslist()])
+    assert np.allclose(L3 @ sqrt_d, 0)
+
+    # Exact Laplacian calculation
+    true_L3 = np.array(
         [
-            [0.5, -0.5, -0.5, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [-0.5, 0.5, -0.5, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [-0.5, -0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.5, -0.35355339, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, -0.35355339, 0.5, -0.35355339, -0.35355339],
-            [0.0, 0.0, 0.0, 0.0, 0.0, -0.35355339, 0.5, -0.5],
-            [0.0, 0.0, 0.0, 0.0, 0.0, -0.35355339, -0.5, 0.5],
+            [0.666667, -0.333333, -0.333333, -0.0, -0.0, -0.0, -0.0, -0.0],
+            [-0.333333, 0.666667, -0.333333, -0.0, -0.0, -0.0, -0.0, -0.0],
+            [-0.333333, -0.333333, 0.666667, -0.0, -0.0, -0.0, -0.0, -0.0],
+            [-0.0, -0.0, -0.0, 0.0, -0.0, -0.0, -0.0, -0.0],
+            [-0.0, -0.0, -0.0, -0.0, 0.5, -0.353553, -0.0, -0.0],
+            [-0.0, -0.0, -0.0, -0.0, -0.353553, 0.583333, -0.235702, -0.235702],
+            [-0.0, -0.0, -0.0, -0.0, -0.0, -0.235702, 0.666667, -0.333333],
+            [-0.0, -0.0, -0.0, -0.0, -0.0, -0.235702, -0.333333, 0.666667],
         ]
     )
-    assert np.allclose(true_L, L2)
+    assert np.allclose(true_L3, L3.toarray())
+
+
+def test_fix_647():
+    el = [
+        {1, 2, 3},
+        {1, 4, 5},
+        {1, 6, 7, 8},
+        {4, 9, 10, 11, 12},
+        {1, 13, 14, 15, 16},
+        {4, 17, 18},
+    ]
+    H = xgi.Hypergraph(el)
+    L = xgi.normalized_hypergraph_laplacian(H, sparse=False)
+
+    # Eigenvalues non-negative
+    evals_mwe = eigvalsh(L)
+    assert np.all(evals_mwe >= 0)
+
+    # Weights error handling
+    ## Default value when "weight" attribute unavailable
+    L_wtd = xgi.normalized_hypergraph_laplacian(H, weighted=True, sparse=False)
+    assert np.allclose(L, L_wtd)
+
+    ## Uniform weight
+    H_wtd = H.copy()
+    H_wtd.set_edge_attributes(2, name="weight")
+    L_wtd_uniform = xgi.normalized_hypergraph_laplacian(
+        H_wtd, weighted=True, sparse=False
+    )
+    assert np.allclose(2 * L_wtd - np.eye(H_wtd.num_nodes), L_wtd_uniform)
 
 
 def test_empty_order(edgelist6):
@@ -692,3 +756,48 @@ def test_empty():
     assert xgi.boundary_matrix(H).shape == (0, 0)
 
     assert xgi.hodge_laplacian(H).shape == (0, 0)
+
+
+def test_adjacency_tensor(edgelist1):
+    el1 = edgelist1
+    H1 = xgi.Hypergraph(el1)
+
+    A11, node_dict = xgi.adjacency_tensor(H1, order=1, index=True, normalized=False)
+    node_dict1 = {k: v for v, k in node_dict.items()}
+
+    assert type(A11) == np.ndarray
+    assert A11.shape == (8, 8)
+    assert A11.sum() == 2
+    assert list(np.unique(A11)) == [0, 1]
+    assert np.all(A11 == xgi.adjacency_matrix(H1, order=1, sparse=False))
+
+    A12 = xgi.adjacency_tensor(H1, order=2, normalized=False)
+    assert type(A12) == np.ndarray
+    assert A12.shape == (8, 8, 8)
+    assert A12.sum() == 12
+    assert list(np.unique(A12)) == [0, 1]
+
+    assert A12[node_dict1[1], node_dict1[2], node_dict1[3]] == 1
+    assert A12[node_dict1[1], node_dict1[3], node_dict1[2]] == 1
+    assert A12[node_dict1[2], node_dict1[3], node_dict1[1]] == 1
+    assert A12[node_dict1[2], node_dict1[1], node_dict1[3]] == 1
+    assert A12[node_dict1[3], node_dict1[1], node_dict1[2]] == 1
+    assert A12[node_dict1[3], node_dict1[2], node_dict1[1]] == 1
+
+    assert A12[node_dict1[6], node_dict1[7], node_dict1[8]] == 1
+    assert A12[node_dict1[6], node_dict1[8], node_dict1[7]] == 1
+    assert A12[node_dict1[7], node_dict1[8], node_dict1[6]] == 1
+    assert A12[node_dict1[7], node_dict1[6], node_dict1[8]] == 1
+    assert A12[node_dict1[8], node_dict1[6], node_dict1[7]] == 1
+    assert A12[node_dict1[8], node_dict1[7], node_dict1[6]] == 1
+
+    # normalization
+    A11_norm = xgi.adjacency_tensor(H1, order=1)
+    assert np.allclose(A11_norm, A11)
+
+    A12_norm = xgi.adjacency_tensor(H1, order=2)
+    assert np.allclose(A12_norm, A12 / 2)
+
+    A13 = xgi.adjacency_tensor(H1, order=3)
+    A13_norm = xgi.adjacency_tensor(H1, order=3)
+    assert np.allclose(A13_norm, A13 / 6)

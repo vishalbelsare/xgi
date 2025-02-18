@@ -1,5 +1,136 @@
 # Changelog
 
+## v0.9.5
+* Fix `fast_random_hypergraph` fencepost errors. [#655](https://github.com/xgi-org/xgi/pull/655) (@nwlandry)
+* Split the GitHub actions for the tutorials and source code. [#659](https://github.com/xgi-org/xgi/pull/659) (@nwlandry)
+* Added `edgelw` keyword in `draw()`. (Closes Issue [#654](https://github.com/xgi-org/xgi/issues/654)) [#658](https://github.com/xgi-org/xgi/pull/658) (@maximelucas)
+* Switch from `lru_cache` to `cache`. (Closes Issue [#656](https://github.com/xgi-org/xgi/issues/656)) [#657](https://github.com/xgi-org/xgi/pull/657) (@nwlandry)
+* Fix fencepost errors in `uniform_erdos_renyi_hypergraph`. (Closes Issue [#652](https://github.com/xgi-org/xgi/issues/652)) [#653](https://github.com/xgi-org/xgi/pull/653) (@tlarock)
+* Fix/normalized hypergraph laplacian. (Closes Issue [#647](https://github.com/xgi-org/xgi/issues/647)) [#648](https://github.com/xgi-org/xgi/pull/648) (@kaiser-dan)
+* Fix sparse diag by upgrading SciPy and Numpy and dropping Python 3.9. (Closes Issue [#649](https://github.com/xgi-org/xgi/issues/649)) [#650](https://github.com/xgi-org/xgi/pull/650) (@maximelucas)
+
+## v0.9.4
+* Support `DiHypergraph` in the `from_bipartite_graph` and `to_bipartite_graph` methods. [#633](https://github.com/xgi-org/xgi/pull/633) (@colltoaction)
+* feat: added seed to shuffle-hypedges. (Closes Issue [#644](https://github.com/xgi-org/xgi/issues/644)) [#645](https://github.com/xgi-org/xgi/pull/645) (@maximelucas)
+* Improved changelog generator to link issues closed by PRs. (Closes Issue [#627](https://github.com/xgi-org/xgi/issues/627)) [#639](https://github.com/xgi-org/xgi/pull/639) (@nwlandry)
+* Added new publication references. [#638](https://github.com/xgi-org/xgi/pull/638) (@nwlandry)
+* Fix issue with load_xgi_data HIF. [#637](https://github.com/xgi-org/xgi/pull/637) (@nwlandry)
+* Add metadata attributes to ashist() for improved plotting. [#635](https://github.com/xgi-org/xgi/pull/635) (@willcollins10)
+
+## v0.9.3
+* Added the ability for `load_xgi_data` to read HIF and added HIF dicts to the convert module. [#613](https://github.com/xgi-org/xgi/pull/613) (@nwlandry)
+* Added a custom Changelog generator to use XGI formatting. [#626](https://github.com/xgi-org/xgi/pull/626) (@nwlandry)
+* Removed unnecesary asv files and added benchmarks. [#631](https://github.com/xgi-org/xgi/pull/631) (@nwlandry)
+* Added a benchmark GitHub Action with `pytest-benchmark`. [#630](https://github.com/xgi-org/xgi/pull/630) (@nwlandry)
+* Added release hashes for `asv`. [#628](https://github.com/xgi-org/xgi/pull/628) (@nwlandry)
+* [BREAKING] Replaced the `id` variable with `idx` in XGI (Fixes Issue [#619](https://github.com/xgi-org/xgi/issues/619)). [#620](https://github.com/xgi-org/xgi/pull/620) (@nwlandry)
+
+## v0.9.2
+* Added nonuniform centralities and fixed the `node_edge_centrality` method [#600](https://github.com/xgi-org/xgi/pull/600) (@nwlandry).
+* Fixed Issue [#615](https://github.com/xgi-org/xgi/issues/615). Added a docstring to the `watts_strogatz_hypergraph` method [#618](https://github.com/xgi-org/xgi/pull/618) (@nwlandry).
+* Made the `HOW_TO_CONTRIBUTE` guide more friendly to new contributors and accurate to our current release process [#614](https://github.com/xgi-org/xgi/pull/614) (@nwlandry).
+* Fixed the `local_clustering_coefficient` method [#608](https://github.com/xgi-org/xgi/pull/608) (@cosimoagostinelli).
+* Created an initial sphinx-gallery [#609](https://github.com/xgi-org/xgi/pull/609) (@maximelucas).
+* Changed aggregate stats type from numpy ints and floats to Python ints and floats and added `unique` method. [#603](https://github.com/xgi-org/xgi/pull/603) (@nwlandry).
+
+## v0.9.1
+* Fixed Issue [#361](https://github.com/xgi-org/xgi/issues/361) for `random_hypergraph` [#597](https://github.com/xgi-org/xgi/pull/597) (@nwlandry).
+* Added the ability to generate Erdős-Rényi hypergraphs without multiedges [#596](https://github.com/xgi-org/xgi/pull/596) (@nwlandry).
+* Added support for Python 3.13 [#599](https://github.com/xgi-org/xgi/pull/599) (@nwlandry).
+* Added a module for simpliciality measures [#587](https://github.com/xgi-org/xgi/pull/587) (@nwlandry).
+* Tweaked the HIF read/write functions to match updates [#598](https://github.com/xgi-org/xgi/pull/598) (@nwlandry).
+* Added a conditional API note [#595](https://github.com/xgi-org/xgi/pull/595) (@nwlandry).
+* Fixed broken links in the README [#594](https://github.com/xgi-org/xgi/pull/594) (@nwlandry).
+
+## v0.9
+* Added methods to (1) cut networks by order (`cut_to_order`) and (2) generate the k-skeleton of a SC (`k_skeleton`) [#578](https://github.com/xgi-org/xgi/pull/578) (@thomasrobiglio).
+* Fixed an issue where the latest version displayed "dev" [#592](https://github.com/xgi-org/xgi/pull/592) (@nwlandry).
+* Fixed the issue in the XGI version switcher so it no longer displays "Choose version" [#590](https://github.com/xgi-org/xgi/pull/590) (@nwlandry).
+* Added the ability to switch between XGI versions on ReadTheDocs, added a favicon, added a theme-dependent logo, added the ability to auto-retrieve the license date range, and the ability to auto-retrieve the date of the latest release [#586](https://github.com/xgi-org/xgi/pull/586) (@nwlandry).
+* Fixed Issue [#580](https://github.com/xgi-org/xgi/issues/580) and added related unit tests [#581](https://github.com/xgi-org/xgi/pull/581) (@thomasrobiglio).
+* Added the ability to change the website color themes (light, dark, auto), removed unnecessary files from the PyData migration, and fixed Sphinx errors [#582](https://github.com/xgi-org/xgi/pull/582) (@nwlandry).
+* Fixed broken links on the PyPI landing page from relative paths [#579](https://github.com/xgi-org/xgi/pull/579) (@nwlandry).
+
+## v0.8.10
+* Migrating to the PyData theme for the online docs [#576](https://github.com/xgi-org/xgi/pull/576)  (@maximelucas).
+
+## v0.8.9
+* Added a new recipe to address Issue [#549](https://github.com/xgi-org/xgi/issues/549) [#574](https://github.com/xgi-org/xgi/pull/574) (@nwlandry).
+* Added the `edge_ec` argument to the `draw` method to specify edge colors [#575](https://github.com/xgi-org/xgi/pull/575) (@maximelucas).
+* Switched from setup.py to pyproject.toml for installation [#573](https://github.com/xgi-org/xgi/pull/573) (@nwlandry).
+
+## v0.8.8
+* Added the ability to read and write files according the HIF functionality standard [#572](https://github.com/xgi-org/xgi/pull/572) (@nwlandry).
+* Implemented the `add_node_to_edge` and `remove_node_from_edge` methods for DiHypergraphs [#571](https://github.com/xgi-org/xgi/pull/571) (@nwlandry).
+* Allow empty edges [#565](https://github.com/xgi-org/xgi/pull/565) (@nwlandry).
+* Simplified the `cleanup()` methods [#569](https://github.com/xgi-org/xgi/pull/569) (@nwlandry).
+* Fix Issue [#566](https://github.com/xgi-org/xgi/issues/566) [#567](https://github.com/xgi-org/xgi/pull/567) (@maximelucas).
+* Added documentation about N vs. N-1 in the `var()` and `std()` methods in the stats module [#562](https://github.com/xgi-org/xgi/pull/562) (@nwlandry).
+* Fix Issue [#552](https://github.com/xgi-org/xgi/issues/552) [#561](https://github.com/xgi-org/xgi/pull/561) (@nwlandry).
+
+## v0.8.7
+* Renamed the `_hypergraph` internal variable to `_net_attr` [#560](https://github.com/xgi-org/xgi/pull/560) (@nwlandry).
+* Get rid of KeyErrors in `to_line_graph`  [#558](https://github.com/xgi-org/xgi/pull/558) (@pgberlureau).
+* Fix `asfptype()` scipy error [#559](https://github.com/xgi-org/xgi/pull/559) (@nwlandry).
+* Added the ability for XGI to load data collections [#540](https://github.com/xgi-org/xgi/pull/540) (@nwlandry).
+* Made the `DiHypergraph` class more consistent with other class internals [#541](https://github.com/xgi-org/xgi/pull/541) (@nwlandry).
+* Fix Numpy 2.0 breaking changes [#547](https://github.com/xgi-org/xgi/pull/547) (@nwlandry).
+* Moved tutorials to the top level [#550](https://github.com/xgi-org/xgi/pull/550) (@nwlandry).
+
+## v0.8.6
+* Added numpy<2.0 to the requirements to avoid breaking changes with Numpy version [2.0](https://numpy.org/news/#numpy-20-release-date-june-16) [#545](https://github.com/xgi-org/xgi/pull/545) (@nwlandry).
+* Update license and contributing [#539](https://github.com/xgi-org/xgi/pull/539) (@nwlandry).
+* Added error handling for JSON duplicate IDs [#538](https://github.com/xgi-org/xgi/pull/538) (@nwlandry).
+* Added a new drawing recipe for drawing multiple hypergraphs with the same node positions [#535](https://github.com/xgi-org/xgi/pull/535) (@nwlandry).
+
+## v0.8.5
+* Added the ability to draw hypergraphs and dihypergraphs as bipartite graphs, added a bipartite spring layout, and added the ability to place edge markers at the barycenters of the positions of their member nodes with the `edge_positions_from _barycenters` function [#492](https://github.com/xgi-org/xgi/pull/492) (@nwlandry).
+* Updated the documentation to include (1) new relevant software packages organized by language, (2) documentation for the encapsulation DAG, (3) new gallery examples, (4) new projects using XGI, and (5) links to the XGI JOSS paper [#529](https://github.com/xgi-org/xgi/pull/529) (@nwlandry).
+* More intelligible warning for unknown type of degree assortativity [#533](https://github.com/xgi-org/xgi/pull/533) (@doabell).
+* Formatted the numbers in the XGI-DATA [table](https://xgi.readthedocs.io/en/stable/xgi-data.html) by locale [#532](https://github.com/xgi-org/xgi/pull/532) (@doabell).
+* Added a hypergraph random edge shuffle method [#531](https://github.com/xgi-org/xgi/pull/531) (@doabell).
+* Updated the return type of Katz centrality to be a dictionary and added it as a NodeStat [#530](https://github.com/xgi-org/xgi/pull/530) (@nwlandry).
+* Made `degree_assortativity` with the `exact=True` keyword reproducible [#526](https://github.com/xgi-org/xgi/pull/526) (@nwlandry).
+
+## v0.8.4
+* Added the ability to supply user-defined functions to `filterby` and `filterby_attr` [#524](https://github.com/xgi-org/xgi/pull/524) (@nwlandry).
+* Reorganized the stats tests [#525](https://github.com/xgi-org/xgi/pull/525) (@nwlandry).
+* Added a recipe for finding the maximal indices based on statistics [#522](https://github.com/xgi-org/xgi/pull/522) (@nwlandry).
+* Added the ability to argsort stats [#521](https://github.com/xgi-org/xgi/pull/521) (@nwlandry).
+* Added recipes for flagged triangular lattices and avg. shortest path length [#513](https://github.com/xgi-org/xgi/pull/513) (@thomasrobiglio).
+* Add `argmax` and `argmin` to the stats interface [#518](https://github.com/xgi-org/xgi/pull/518) (@nwlandry).
+* Updated the list of projects using XGI [#519](https://github.com/xgi-org/xgi/pull/519) (@nwlandry).
+* Fixed the multilayer warning (Issue [#515](https://github.com/xgi-org/xgi/issues/515)) that occurs when specifying colors for each node [#517](https://github.com/xgi-org/xgi/pull/517) (@nwlandry).
+
+## v0.8.3
+* Fixed the drawing warning (Issue [#499](https://github.com/xgi-org/xgi/issues/499)) that occurs when specifying colors for each node [#512](https://github.com/xgi-org/xgi/pull/512) (@nwlandry).
+* Formatted the tutorial notebooks with isort [#502](https://github.com/xgi-org/xgi/pull/502) (@nwlandry).
+* Fixed a missing link [#503](https://github.com/xgi-org/xgi/pull/503) (@maximelucas).
+* Added a workflow to check all the urls in the documentation work [#498](https://github.com/xgi-org/xgi/pull/498) (@nwlandry).
+
+## v0.8.2
+* Added an XGI-DATA page to ReadTheDocs with network statistics [#496](https://github.com/xgi-org/xgi/pull/496) (@nwlandry).
+* Added syntax highlighting in the tutorials [#497](https://github.com/xgi-org/xgi/pull/497) (@thomasrobiglio).
+* Changed the xgi-data index location to Github to support the move to Zenodo-hosted datasets [#494](https://github.com/xgi-org/xgi/pull/494) (@nwlandry)
+* Update the list of publications using XGI [#493](https://github.com/xgi-org/xgi/pull/493) (@nwlandry).
+
+## v0.8.1
+* Added the ability to draw a convex hull as an option in `draw_hyperedges` [#491](https://github.com/xgi-org/xgi/pull/491) (@maximelucas).
+* Fixed sphinx documentation errors [#487](https://github.com/xgi-org/xgi/pull/487) (@nwlandry).
+* Rewrote the `draw_multilayer` function [#486](https://github.com/xgi-org/xgi/pull/486) (@maximelucas).
+* Updated the "Projects Using XGI" page [#489](https://github.com/xgi-org/xgi/pull/489) (@nwlandry).
+* Added support for Python 3.12 [#488](https://github.com/xgi-org/xgi/pull/488) (@nwlandry).
+
+## v0.8
+* Made `IDViews` respect edge insertion order in the `from_view` method [#482](https://github.com/xgi-org/xgi/pull/482) (@nwlandry).
+* Fixed issues in drawing functions [#476](https://github.com/xgi-org/xgi/pull/476) (@maximelucas).
+* Fixed Issue [#480](https://github.com/xgi-org/xgi/issues/480) which raised an error when users attempted to set edge properties with an id:value dictionary with an attribute name [#481](https://github.com/xgi-org/xgi/pull/481) (@nwlandry).
+* Made minor changes and corrections to the tutorials in the documentation [#479](https://github.com/xgi-org/xgi/pull/479) (@thomasrobiglio).
+* Rewrote the `draw_hyperedges()` function to utilize native matplotlib functionality and be more consistent [#456](https://github.com/xgi-org/xgi/pull/456) (@maximelucas).
+* Integrated the tutorials into the documentation [#457](https://github.com/xgi-org/xgi/pull/457) (@thomasrobiglio).
+* Added an `s` parameter to the `neighbors` method for edge overlap [#450](https://github.com/xgi-org/xgi/pull/450) (@nwlandry).
+* Fixed Issue [#468](https://github.com/xgi-org/xgi/issues/468) so that the `ashist` method doesn't try to create multiple bins for stats with a single unique value [#473](https://github.com/xgi-org/xgi/pull/473) (@nwlandry).
+
 ## v0.7.4
 * Response to PyOpenSci review, fixing Issue [#453](https://github.com/xgi-org/xgi/issues/453) among other things [#470](https://github.com/xgi-org/xgi/pull/470) (@nwlandry).
 * Fixed issues created from merging PR #380 [#471](https://github.com/xgi-org/xgi/pull/471) (@nwlandry).

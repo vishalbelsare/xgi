@@ -13,6 +13,12 @@
 
 import os
 import sys
+from datetime import date, datetime
+
+import requests
+from sphinx_gallery.sorting import ExplicitOrder, FileNameSortKey
+
+import xgi
 
 sys.path.insert(0, os.path.abspath("."))
 sys.path.append(os.path.join(os.path.dirname(__name__), "xgi"))
@@ -20,8 +26,8 @@ sys.path.append(os.path.join(os.path.dirname(__name__), "xgi"))
 
 # -- Project information -----------------------------------------------------
 project = "XGI"
-copyright = "Copyright (C) 2021-2023 XGI Developers"
-release = "0.7.4"
+copyright = f"2021-{date.today().year} XGI Developers"
+version = xgi.__version__
 
 # -- General configuration ---------------------------------------------------
 
@@ -62,9 +68,10 @@ exclude_patterns = []
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
-
+html_js_files = ["table.js"]
+html_favicon = "_static/x.ico"
 # If your documentation needs a minimal Sphinx version, state it here.
-needs_sphinx = "1.3"
+needs_sphinx = "6.2.1"
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -81,7 +88,11 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx_gallery.gen_gallery",
+    "nbsphinx",
+    "nbsphinx_link",
 ]
+
 
 # Automatically generate stub pages when using the .. autosummary directive
 autosummary_generate = True
@@ -110,9 +121,28 @@ language = "en"
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
-# today = ''
+r = requests.get("https://api.github.com/repos/xgi-org/xgi/releases/latest")
+
+if r.ok:
+    release_date = (
+        datetime.fromisoformat(r.json()["published_at"]).date().strftime("%b %d, %Y")
+    )
+    release_url = r.json()["html_url"]
+    release_version = r.json()["tag_name"].strip("v")
+else:
+    raise Exception(f"Error: HTTP response {r.status_code}")
+
+rst_epilog = f"""
+.. role:: raw-html(raw)
+   :format: html
+.. |release_announcement| replace:: :raw-html:`<a href={release_url}><button type="button" class="version-button">XGI {release_version} released! {release_date}</button></a>`
+.. |release_date| replace:: {release_date}
+.. |release_version| replace:: {release_version}
+"""
+
+today = release_date
 # Else, today_fmt is used as the format for a strftime call.
-today_fmt = "%B %d, %Y"
+# today_fmt = "%B %d, %Y"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -127,7 +157,7 @@ exclude_patterns = []
 
 # If true, the current module name will be prepended to all description
 # unit titles (such as .. function::).
-# add_module_names = True
+add_module_names = False
 
 # If true, sectionauthor and moduleauthor directives will be shown in the
 # output. They are ignored by default.
@@ -151,20 +181,109 @@ todo_include_todos = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = "sphinx_rtd_theme"
+html_theme = "pydata_sphinx_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
+
+version_match = os.environ.get("READTHEDOCS_VERSION")
+
+# If READTHEDOCS_VERSION doesn't exist, we're not on RTD
+if not version_match:
+    version_match = "dev"
+
+# If it is an integer, we're in a PR build and the version isn't correct.
+elif version_match.isdigit():
+    version_match = "dev"
+
+# If it's "latest" → change to "dev" (that's what we want the switcher to call it)
+elif version_match == "latest":
+    version_match = "dev"
+
+else:
+    version_match = "stable"
+
+
+if version_match == "stable":
+    tags.add("stable_version")
+elif version_match == "dev":
+    tags.add("dev_version")
+
 # documentation.
-# html_theme_options = {}
+html_theme_options = {
+    "logo": {
+        "image_light": "../../logo/logo.svg",
+        "image_dark": "../../logo/logo_white.svg",
+    },
+    "navbar_start": ["navbar-logo"],
+    "navbar_end": [
+        "theme-switcher",
+        "navbar-icon-links",
+        "version-switcher",
+    ],
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/xgi-org/xgi",
+            "icon": "fab fa-github-square",  # Font Awesome icon
+        },
+        {
+            "name": "Twitter",
+            "url": "https://twitter.com/xginets",
+            "icon": "fab fa-twitter-square",  # Font Awesome icon
+        },
+    ],
+    "header_links_before_dropdown": 5,
+    "switcher": {
+        "json_url": (
+            "https://xgi.readthedocs.io/en/latest/_static/version_switcher.json"
+        ),
+        "version_match": version_match,
+    },
+}
+
+
+html_sidebars = {
+    "**": ["sidebar-nav-bs", "sidebar-ethical-ads"],
+    "index": [],
+    "installing": [],
+    "tutorial": [],
+    "xgi-data": [],
+    "auto_examples/index": [],
+    "gallery": [],
+    "contribute": [],
+    "user_guides": [],
+    "using-xgi": [],
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = ["_static"]
-# html_static_path = ["_static"]
+html_static_path = ["_static"]
 
 html_show_sphinx = True
 
 htmlhelp_basename = "XGIDoc"
+
+# -- Options for Sphinx Gallery ----------------------
+
+
+sphinx_gallery_conf = {
+    # path to your examples scripts
+    "examples_dirs": "../../examples",
+    "subsection_order": ExplicitOrder(
+        [
+            "../../examples/basic",
+            "../../examples/layouts",
+            "../../examples/stats",
+            "../../examples/advanced",
+        ]
+    ),
+    "within_subsection_order": "FileNameSortKey",
+    # path where to save gallery generated examples
+    "gallery_dirs": "auto_examples",
+    "plot_gallery": "True",
+    "image_scrapers": ("matplotlib",),
+}
 
 # -- Options for LaTeX output ---------------------------------------------
 

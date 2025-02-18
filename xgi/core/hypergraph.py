@@ -1,4 +1,6 @@
 """Base class for undirected hypergraphs."""
+
+import random
 from collections import defaultdict
 from collections.abc import Hashable, Iterable
 from copy import copy, deepcopy
@@ -42,6 +44,11 @@ class Hypergraph:
         Attributes to add to the hypergraph as key, value pairs.
         By default, None.
 
+    See Also
+    --------
+    ~xgi.core.simplicialcomplex.SimplicialComplex
+    ~xgi.core.dihypergraph.DiHypergraph
+
     Notes
     -----
     Unique IDs are assigned to each node and edge internally and are used to refer to
@@ -53,7 +60,7 @@ class Hypergraph:
     In addition to the methods listed in this page, other methods defined in the `stats`
     package are also accessible via the `Hypergraph` class.  For more details, see the
     `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     Examples
     --------
@@ -65,11 +72,12 @@ class Hypergraph:
     EdgeView((0, 1, 2, 3))
 
     """
+
     _node_dict_factory = IDDict
     _node_attr_dict_factory = IDDict
-    _hyperedge_dict_factory = IDDict
-    _hyperedge_attr_dict_factory = IDDict
-    _hypergraph_attr_dict_factory = dict
+    _edge_dict_factory = IDDict
+    _edge_attr_dict_factory = IDDict
+    _net_attr_dict_factory = dict
 
     def __getstate__(self):
         """Function that allows pickling.
@@ -87,7 +95,7 @@ class Hypergraph:
         """
         return {
             "_edge_uid": self._edge_uid,
-            "_hypergraph": self._hypergraph,
+            "_net_attr": self._net_attr,
             "_node": self._node,
             "_node_attr": self._node_attr,
             "_edge": self._edge,
@@ -108,7 +116,7 @@ class Hypergraph:
         This allows the python multiprocessing module to be used.
         """
         self._edge_uid = state["_edge_uid"]
-        self._hypergraph = state["_hypergraph"]
+        self._net_attr = state["_net_attr"]
         self._node = state["_node"]
         self._node_attr = state["_node_attr"]
         self._edge = state["_edge"]
@@ -118,25 +126,25 @@ class Hypergraph:
 
     def __init__(self, incoming_data=None, **attr):
         self._edge_uid = count()
-        self._hypergraph = self._hypergraph_attr_dict_factory()
+        self._net_attr = self._net_attr_dict_factory()
         self._node = self._node_dict_factory()
         self._node_attr = self._node_attr_dict_factory()
-        self._edge = self._hyperedge_dict_factory()
-        self._edge_attr = self._hyperedge_attr_dict_factory()
+        self._edge = self._edge_dict_factory()
+        self._edge_attr = self._edge_attr_dict_factory()
 
         self._nodeview = NodeView(self)
-        """A :class:`~xgi.core.reportviews.NodeView` of the hypergraph."""
+        """A :class:`~xgi.core.views.NodeView` of the hypergraph."""
 
         self._edgeview = EdgeView(self)
-        """An :class:`~xgi.core.reportviews.EdgeView` of the hypergraph."""
+        """An :class:`~xgi.core.views.EdgeView` of the hypergraph."""
 
         if incoming_data is not None:
             # This import needs to happen when this function is called, not when it is
             # defined.  Otherwise, a circular import error would happen.
-            from ..convert import convert_to_hypergraph
+            from ..convert import to_hypergraph
 
-            convert_to_hypergraph(incoming_data, create_using=self)
-        self._hypergraph.update(attr)  # must be after convert
+            to_hypergraph(incoming_data, create_using=self)
+        self._net_attr.update(attr)  # must be after convert
 
     def __str__(self):
         """Returns a short summary of the hypergraph.
@@ -205,13 +213,13 @@ class Hypergraph:
     def __getitem__(self, attr):
         """Read hypergraph attribute."""
         try:
-            return self._hypergraph[attr]
+            return self._net_attr[attr]
         except KeyError:
             raise XGIError("This attribute has not been set.")
 
     def __setitem__(self, attr, val):
         """Write hypergraph attribute."""
-        self._hypergraph[attr] = val
+        self._net_attr[attr] = val
 
     def __getattr__(self, attr):
         stat = getattr(self.nodes, attr, None)
@@ -280,8 +288,8 @@ class Hypergraph:
         tempH.add_edges_from(zip(self._edge.values(), self._edge_attr.values()))
         tempH.add_edges_from(zip(H2._edge.values(), H2._edge_attr.values()))
 
-        tempH._hypergraph = deepcopy(self._hypergraph)
-        tempH._hypergraph.update(deepcopy(H2._hypergraph))
+        tempH._net_attr = deepcopy(self._net_attr)
+        tempH._net_attr.update(deepcopy(H2._net_attr))
 
         return tempH
 
@@ -402,7 +410,7 @@ class Hypergraph:
                 self._node_attr[n] = self._node_attr_dict_factory()
             self._node_attr[n].update(newdict)
 
-    def remove_node(self, n, strong=False):
+    def remove_node(self, n, strong=False, remove_empty=True):
         """Remove a single node.
 
         The removal may be weak (default) or strong.  In weak removal, the node is
@@ -414,9 +422,10 @@ class Hypergraph:
         ----------
         n : node
             A node in the hypergraph
-
         strong : bool, optional
             Whether to execute weak or strong removal. By default, False.
+        remove_empty : bool, optional
+            Whether to remove empty edges. By default, True.
 
         Raises
         ------
@@ -442,17 +451,21 @@ class Hypergraph:
         else:  # weak removal
             for edge in edge_neighbors:
                 self._edge[edge].remove(n)
-                if not self._edge[edge]:
+                if not self._edge[edge] and remove_empty:
                     del self._edge[edge]
                     del self._edge_attr[edge]
 
-    def remove_nodes_from(self, nodes):
+    def remove_nodes_from(self, nodes, strong=False, remove_empty=True):
         """Remove multiple nodes.
 
         Parameters
         ----------
         nodes : iterable
             An iterable of nodes.
+        strong : bool, optional
+            Whether to execute weak or strong removal. By default, False.
+        remove_empty : bool, optional
+            Whether to remove empty edges. By default, True.
 
         See Also
         --------
@@ -463,7 +476,7 @@ class Hypergraph:
             if n not in self:
                 warn(f"Node {n} not in hypergraph")
                 continue
-            self.remove_node(n)
+            self.remove_node(n, strong=strong, remove_empty=remove_empty)
 
     def set_node_attributes(self, values, name=None):
         """Sets node attributes from a given value or dictionary of values.
@@ -528,14 +541,14 @@ class Hypergraph:
             except (TypeError, ValueError, AttributeError):
                 raise XGIError("Must pass a dictionary of dictionaries")
 
-    def add_edge(self, members, id=None, **attr):
+    def add_edge(self, members, idx=None, **attr):
         """Add one edge with optional attributes.
 
         Parameters
         ----------
         members : Iterable
             An iterable of the ids of the nodes contained in the new edge.
-        id : hashable, optional
+        idx : hashable, optional
             Id of the new edge. If None (default), a unique numeric ID will be created.
         **attr : dict, optional
             Attributes of the new edge.
@@ -558,7 +571,7 @@ class Hypergraph:
         >>> import xgi
         >>> H = xgi.Hypergraph()
         >>> H.add_edge([1, 2, 3])
-        >>> H.add_edge([3, 4], id='myedge')
+        >>> H.add_edge([3, 4], idx='myedge')
         >>> H.edges
         EdgeView((0, 'myedge'))
 
@@ -574,14 +587,12 @@ class Hypergraph:
 
         """
         members = set(members)
-        if not members:
-            raise XGIError("Cannot add an empty edge")
 
-        if id in self._edge.keys():  # check that uid is not present yet
-            warn(f"uid {id} already exists, cannot add edge {members}")
+        if idx in self._edge.keys():  # check that uid is not present yet
+            warn(f"uid {idx} already exists, cannot add edge {members}")
             return
 
-        uid = next(self._edge_uid) if id is None else id
+        uid = next(self._edge_uid) if idx is None else idx
 
         self._edge[uid] = set()
         for node in members:
@@ -591,11 +602,11 @@ class Hypergraph:
             self._node[node].add(uid)
             self._edge[uid].add(node)
 
-        self._edge_attr[uid] = self._hyperedge_attr_dict_factory()
+        self._edge_attr[uid] = self._edge_attr_dict_factory()
         self._edge_attr[uid].update(attr)
 
-        if id:  # set self._edge_uid correctly
-            update_uid_counter(self, id)
+        if idx:  # set self._edge_uid correctly
+            update_uid_counter(self, idx)
 
     def add_edges_from(self, ebunch_to_add, **attr):
         r"""Add multiple edges with optional attributes.
@@ -622,7 +633,7 @@ class Hypergraph:
             the same length, i.e. you cannot mix different formats.  The iterables
             containing edge members cannot be strings.
 
-        attr : \*\*kwargs, optional
+        **attr : kwargs, optional
             Additional attributes to be assigned to all edges. Attribues specified via
             `ebunch_to_add` take precedence over `attr`.
 
@@ -698,22 +709,22 @@ class Hypergraph:
         """
         # format 5 is the easiest one
         if isinstance(ebunch_to_add, dict):
-            for id, members in ebunch_to_add.items():
-                if id in self._edge.keys():  # check that uid is not present yet
-                    warn(f"uid {id} already exists, cannot add edge {members}.")
+            for idx, members in ebunch_to_add.items():
+                if idx in self._edge.keys():  # check that uid is not present yet
+                    warn(f"uid {idx} already exists, cannot add edge {members}.")
                     continue
                 try:
-                    self._edge[id] = set(members)
+                    self._edge[idx] = set(members)
                 except TypeError as e:
                     raise XGIError("Invalid ebunch format") from e
                 for n in members:
                     if n not in self._node:
                         self._node[n] = set()
                         self._node_attr[n] = self._node_attr_dict_factory()
-                    self._node[n].add(id)
-                self._edge_attr[id] = self._hyperedge_attr_dict_factory()
+                    self._node[n].add(idx)
+                self._edge_attr[idx] = self._edge_attr_dict_factory()
 
-                update_uid_counter(self, id)
+                update_uid_counter(self, idx)
 
             return
 
@@ -751,19 +762,19 @@ class Hypergraph:
         e = first_edge
         while True:
             if format1:
-                members, id, eattr = e, next(self._edge_uid), {}
+                members, idx, eattr = e, next(self._edge_uid), {}
             elif format2:
-                members, id, eattr = e[0], e[1], {}
+                members, idx, eattr = e[0], e[1], {}
             elif format3:
-                members, id, eattr = e[0], next(self._edge_uid), e[1]
+                members, idx, eattr = e[0], next(self._edge_uid), e[1]
             elif format4:
-                members, id, eattr = e[0], e[1], e[2]
+                members, idx, eattr = e[0], e[1], e[2]
 
-            if id in self._edge.keys():  # check that uid is not present yet
-                warn(f"uid {id} already exists, cannot add edge {members}.")
+            if idx in self._edge.keys():  # check that uid is not present yet
+                warn(f"uid {idx} already exists, cannot add edge {members}.")
             else:
                 try:
-                    self._edge[id] = set(members)
+                    self._edge[idx] = set(members)
                 except TypeError as e:
                     raise XGIError("Invalid ebunch format") from e
 
@@ -771,17 +782,17 @@ class Hypergraph:
                     if n not in self._node:
                         self._node[n] = set()
                         self._node_attr[n] = self._node_attr_dict_factory()
-                    self._node[n].add(id)
+                    self._node[n].add(idx)
 
-                self._edge_attr[id] = self._hyperedge_attr_dict_factory()
-                self._edge_attr[id].update(attr)
-                self._edge_attr[id].update(eattr)
+                self._edge_attr[idx] = self._edge_attr_dict_factory()
+                self._edge_attr[idx].update(attr)
+                self._edge_attr[idx].update(eattr)
 
             try:
                 e = next(new_edges)
             except StopIteration:
                 if format2 or format4:
-                    update_uid_counter(self, id)
+                    update_uid_counter(self, idx)
                 break
 
     def add_weighted_edges_from(self, ebunch, weight="weight", **attr):
@@ -862,7 +873,7 @@ class Hypergraph:
             try:
                 for e, value in values.items():
                     try:
-                        self._edge_attr[id][name] = value
+                        self._edge_attr[e][name] = value
                     except IDNotFound:
                         warn(f"Edge {e} does not exist!")
             except AttributeError:
@@ -958,6 +969,86 @@ class Hypergraph:
         self._edge[e_id1] = temp_members1
         self._edge[e_id2] = temp_members2
 
+    def random_edge_shuffle(self, e_id1=None, e_id2=None):
+        """Randomly redistributes nodes between two hyperedges.
+
+        The process is as follows:
+
+        1. randomly select two hyperedges
+        2. place all their nodes into a single bucket
+        3. randomly redistribute the nodes between those two hyperedges
+
+        Parameters
+        ----------
+        e_id1 : node ID, optional
+            ID of first edge to shuffle.
+        e_id2 : node ID, optional
+            ID of second edge to shuffle.
+
+        Note
+        ----
+        After shuffling, the sizes of the two hyperedges are unchanged.
+        Edge IDs and attributes are also unchanged.
+        If the same node appears in both hyperedges, then this is still true after reshuffling.
+        If either `e_id1` or `e_id2` is not provided, then two random edges are selected.
+
+        References
+        ----------
+        Philip S Chodrow, 2020.
+        "Configuration models of random hypergraphs."
+        Journal of Complex Networks, 8(3).
+        https://doi.org/10.1093/comnet/cnaa018
+
+        Example
+        -------
+        >>> import xgi
+        >>> random.seed(42)
+        >>> H = xgi.Hypergraph([[1, 2, 3], [3, 4], [4, 5]])
+        >>> H.random_edge_shuffle()
+        >>> H.edges.members()
+        [{2, 4, 5}, {3, 4}, {1, 3}]
+
+        """
+        if len(self._edge) < 2:
+            raise ValueError("Hypergraph must have at least two edges.")
+
+        # select two random edges
+        if e_id1 is None or e_id2 is None:
+            e_id1, e_id2 = random.sample(list(self._edge), 2)
+
+        # extract edges (lists of nodes)
+        e1 = self._edge[e_id1]
+        e2 = self._edge[e_id2]
+
+        # nodes in both edges should not be shuffled
+        nodes_both = e1 & e2
+        e1 -= nodes_both
+        e2 -= nodes_both
+
+        # put all nodes in a single bucket
+        nodes = e1 | e2
+
+        # randomly redistribute nodes between the two edges
+        e1_new = set(random.sample(list(nodes), len(e1)))
+        e2_new = nodes - e1_new
+
+        # update edge memberships
+        for n_id in e1_new & e2:
+            self._node[n_id].remove(e_id2)
+            self._node[n_id].add(e_id1)
+
+        for n_id in e2_new & e1:
+            self._node[n_id].remove(e_id1)
+            self._node[n_id].add(e_id2)
+
+        # add nodes in both edges back
+        e1_new |= nodes_both
+        e2_new |= nodes_both
+
+        # update hypergraph
+        self._edge[e_id1] = e1_new
+        self._edge[e_id2] = e2_new
+
     def add_node_to_edge(self, edge, node):
         """Add one node to an existing edge.
 
@@ -984,7 +1075,7 @@ class Hypergraph:
         >>> H.add_node_to_edge('fruits', 'pear')
         >>> H.add_node_to_edge('veggies', 'lettuce')
         >>> d = H.edges.members(dtype=dict)
-        >>> {id: sorted(list(e)) for id, e in d.items()}
+        >>> {i: sorted(list(e)) for i, e in d.items()}
         {'fruits': ['apple', 'banana', 'pear'], 'veggies': ['lettuce']}
 
         """
@@ -997,12 +1088,12 @@ class Hypergraph:
         self._edge[edge].add(node)
         self._node[node].add(edge)
 
-    def remove_edge(self, id):
+    def remove_edge(self, idx):
         """Remove one edge.
 
         Parameters
         ----------
-        id : Hashable
+        idx : Hashable
             edge ID to remove
 
         Raises
@@ -1015,10 +1106,10 @@ class Hypergraph:
         remove_edges_from : Remove multiple edges.
 
         """
-        for node in self._edge[id].copy():
-            self._node[node].remove(id)
-        del self._edge[id]
-        del self._edge_attr[id]
+        for node in self._edge[idx].copy():
+            self._node[node].remove(idx)
+        del self._edge[idx]
+        del self._edge_attr[idx]
 
     def remove_edges_from(self, ebunch):
         """Remove multiple edges.
@@ -1038,13 +1129,13 @@ class Hypergraph:
         remove_edge : remove a single edge.
 
         """
-        for id in ebunch:
-            for node in self._edge[id].copy():
-                self._node[node].remove(id)
-            del self._edge[id]
-            del self._edge_attr[id]
+        for idx in ebunch:
+            for node in self._edge[idx].copy():
+                self._node[node].remove(idx)
+            del self._edge[idx]
+            del self._edge_attr[idx]
 
-    def remove_node_from_edge(self, edge, node):
+    def remove_node_from_edge(self, edge, node, remove_empty=True):
         """Remove a node from an existing edge.
 
         Parameters
@@ -1053,6 +1144,8 @@ class Hypergraph:
             The edge ID
         node : hashable
             The node ID
+        remove_empty : bool, optional
+            Whether empty edges are removed. By default, True.
 
         Raises
         ------
@@ -1071,21 +1164,18 @@ class Hypergraph:
         removed.
 
         """
-        try:
-            self._node[node].remove(edge)
-        except KeyError as e:
-            raise XGIError(f"Node {node} not in the hypergraph") from e
-        except ValueError as e:
-            raise XGIError(f"Node {node} not in edge {edge}") from e
-
-        try:
+        if edge not in self._edge:
+            raise XGIError(f"Edge {edge} not in the hypergraph")
+        elif node not in self._node:
+            raise XGIError(f"Node {node} not in the hypergraph")
+        elif node not in self._edge[edge]:
+            raise XGIError(f"Edge {edge} does not contain node {node}")
+        else:
             self._edge[edge].remove(node)
-        except KeyError as e:
-            raise XGIError(f"Edge {edge} not in the hypergraph") from e
-        except ValueError as e:
-            raise XGIError(f"Edge {edge} does not contain node {node}") from e
 
-        if not self._edge[edge]:
+        self._node[node].remove(edge)
+
+        if not self._edge[edge] and remove_empty:
             del self._edge[edge]
             del self._edge_attr[edge]
 
@@ -1110,14 +1200,14 @@ class Hypergraph:
         if edges:
             self.add_edges_from(edges)
 
-    def clear(self, hypergraph_attr=True):
+    def clear(self, remove_net_attr=True):
         """Remove all nodes and edges from the graph.
 
         Also removes node and edge attributes, and optionally hypergraph attributes.
 
         Parameters
         ----------
-        hypergraph_attr : bool, optional
+        remove_net_attr : bool, optional
             Whether to remove hypergraph attributes as well.
             By default, True.
 
@@ -1126,8 +1216,8 @@ class Hypergraph:
         self._node_attr.clear()
         self._edge.clear()
         self._edge_attr.clear()
-        if hypergraph_attr:
-            self._hypergraph.clear()
+        if remove_net_attr:
+            self._net_attr.clear()
 
     def clear_edges(self):
         """Remove all edges from the graph without altering any nodes."""
@@ -1267,18 +1357,18 @@ class Hypergraph:
                     raise XGIError("Invalid ID renaming scheme!")
 
                 if merge_rule == "first":
-                    id = min(dup_ids)
-                    new_attrs = deepcopy(self._edge_attr[id])
+                    idx = min(dup_ids)
+                    new_attrs = deepcopy(self._edge_attr[idx])
                 elif merge_rule == "union":
-                    attrs = {field for id in dup_ids for field in self._edge_attr[id]}
+                    attrs = {field for idx in dup_ids for field in self._edge_attr[idx]}
                     new_attrs = {
-                        attr: {self._edge_attr[id].get(attr) for id in dup_ids}
+                        attr: {self._edge_attr[idx].get(attr) for idx in dup_ids}
                         for attr in attrs
                     }
                 elif merge_rule == "intersection":
-                    attrs = {field for id in dup_ids for field in self._edge_attr[id]}
+                    attrs = {field for idx in dup_ids for field in self._edge_attr[idx]}
                     set_attrs = {
-                        attr: {self._edge_attr[id].get(attr) for id in dup_ids}
+                        attr: {self._edge_attr[idx].get(attr) for idx in dup_ids}
                         for attr in attrs
                     }
                     new_attrs = {
@@ -1316,10 +1406,10 @@ class Hypergraph:
         cp.add_nodes_from((n, deepcopy(attr)) for n, attr in nn.items())
         ee = self.edges
         cp.add_edges_from(
-            (e, id, deepcopy(self.edges[id]))
-            for id, e in ee.members(dtype=dict).items()
+            (e, idx, deepcopy(self.edges[idx]))
+            for idx, e in ee.members(dtype=dict).items()
         )
-        cp._hypergraph = deepcopy(self._hypergraph)
+        cp._net_attr = deepcopy(self._net_attr)
 
         cp._edge_uid = copy(self._edge_uid)
 
@@ -1343,7 +1433,7 @@ class Hypergraph:
         )
         ee = self.edges
         dual.add_nodes_from((e, deepcopy(attr)) for e, attr in ee.items())
-        dual._hypergraph = deepcopy(self._hypergraph)
+        dual._net_attr = deepcopy(self._net_attr)
 
         return dual
 
@@ -1379,56 +1469,32 @@ class Hypergraph:
 
         """
         if in_place:
-            if not multiedges:
-                self.merge_duplicate_edges()
-            if not singletons:
-                self.remove_edges_from(self.edges.singletons())
-            if not isolates:
-                self.remove_nodes_from(self.nodes.isolates())
-            if connected:
-                from ..algorithms import largest_connected_component
-
-                self.remove_nodes_from(self.nodes - largest_connected_component(self))
-            if relabel:
-                from ..utils import convert_labels_to_integers
-
-                temp = convert_labels_to_integers(self).copy()
-
-                nn = temp.nodes
-                ee = temp.edges
-
-                self.clear()
-                self.add_nodes_from((n, deepcopy(attr)) for n, attr in nn.items())
-                self.add_edges_from(
-                    (e, id, deepcopy(temp.edges[id]))
-                    for id, e in ee.members(dtype=dict).items()
-                )
-                self._hypergraph = deepcopy(temp._hypergraph)
+            _H = self
         else:
-            H = self.copy()
-            if not multiedges:
-                H.merge_duplicate_edges()
-            if not singletons:
-                H.remove_edges_from(H.edges.singletons())
-            if not isolates:
-                H.remove_nodes_from(H.nodes.isolates())
-            if connected:
-                from ..algorithms import largest_connected_component
+            _H = self.copy()
+        if not multiedges:
+            _H.merge_duplicate_edges()
+        if not singletons:
+            _H.remove_edges_from(_H.edges.singletons())
+        if not isolates:
+            _H.remove_nodes_from(_H.nodes.isolates())
+        if connected:
+            from ..algorithms import largest_connected_hypergraph
 
-                H.remove_nodes_from(H.nodes - largest_connected_component(H))
-            if relabel:
-                from ..utils import convert_labels_to_integers
+            largest_connected_hypergraph(_H, in_place=True)
+        if relabel:
+            from ..utils import convert_labels_to_integers
 
-                H = convert_labels_to_integers(H)
+            convert_labels_to_integers(_H, in_place=True)
 
-            return H
+        return _H
 
     def freeze(self):
         """Method for freezing a hypergraph which prevents it from being modified
 
         See Also
         --------
-        frozen : Method that raises an error when a user tries to modify the hypergraph
+        ~xgi.exception.frozen : Method that raises an error when a user tries to modify the hypergraph
         is_frozen : Check whether a hypergraph is frozen
 
         Examples

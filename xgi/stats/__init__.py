@@ -40,7 +40,7 @@ NodeView((1, 4))
 
 Many other features are available, including edge-statistics, and user-defined
 statistics.  For more details, see the `tutorial
-<https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+<https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
 """
 
@@ -50,8 +50,7 @@ from scipy.stats import moment as spmoment
 
 from ..exception import IDNotFound
 from ..utils import hist
-
-from . import edgestats, diedgestats, dinodestats, nodestats
+from . import diedgestats, dinodestats, edgestats, nodestats
 
 __all__ = [
     "nodestat_func",
@@ -70,7 +69,7 @@ class IDStat:
         self.view = view
         self.net = network
         self.args = () if args is None else args
-        self.kwargs = {} if args is None else kwargs
+        self.kwargs = {} if kwargs is None else kwargs
         self.func = func
 
     def __call__(self, *args, **kwargs):
@@ -91,6 +90,9 @@ class IDStat:
             out += f", kwargs={self.kwargs}"
         out += ")"
         return out
+
+    def __len__(self):
+        return len(self.view)
 
     @property
     def name(self):
@@ -178,7 +180,6 @@ class IDStat:
             Whether to bin the values with log-sized bins.
             By default, False.
 
-
         Returns
         -------
         Pandas DataFrame
@@ -186,6 +187,11 @@ class IDStat:
             where "value" is a count or a probability. If `bin_edges`
             is True, outputs two additional columns, `bin_lo` and `bin_hi`,
             which outputs the left and right bin edges respectively.
+
+            The DataFrame includes the following attributes:
+                - attrs['xlabel']: Label for x-axis
+            - attrs['ylabel']: 'Count' or 'Probability' based on density parameter
+            - attrs['title']: Plot title
 
         Notes
         -----
@@ -197,35 +203,66 @@ class IDStat:
         if isinstance(bins, int) and len(set(self.aslist())) == 1:
             bins = 1
 
-        return hist(self.asnumpy(), bins, bin_edges, density, log_binning)
+        # My modifications below
+
+        # Get the histogram Dataframe
+        df = hist(self.asnumpy(), bins, bin_edges, density, log_binning)
+
+        # Add metadata attributes
+        df.attrs["xlabel"] = "Value"
+        df.attrs["ylabel"] = "Probability" if density else "Count"
+        df.attrs["title"] = "Histogram"
+
+        return df
 
     def max(self):
         """The maximum value of this stat."""
-        return self.asnumpy().max(axis=0)
+        return self.asnumpy().max(axis=0).item()
 
     def min(self):
         """The minimum value of this stat."""
-        return self.asnumpy().min(axis=0)
+        return self.asnumpy().min(axis=0).item()
 
     def sum(self):
         """The sum of this stat."""
-        return self.asnumpy().sum(axis=0)
+        return self.asnumpy().sum(axis=0).item()
 
     def mean(self):
         """The arithmetic mean of this stat."""
-        return self.asnumpy().mean(axis=0)
+        return self.asnumpy().mean(axis=0).item()
 
     def median(self):
         """The median of this stat."""
-        return np.median(self.asnumpy(), axis=0)
+        return np.median(self.asnumpy(), axis=0).item()
+
+    def mode(self):
+        """The mode of this stat."""
+        vals, counts = self.unique(return_counts=True)
+        return vals[np.argmax(counts)].item()
 
     def std(self):
-        """The standard deviation of this stat."""
-        return self.asnumpy().std(axis=0)
+        """The standard deviation of this stat.
+
+        Notes
+        -----
+        This implementation calculates the standard deviation with N in the denominator (NumPy's default).
+        This is in contrast to the sample standard deviation which normalizes by N-1.
+        See https://www.allendowney.com/blog/2024/06/08/which-standard-deviation/
+        for more details.
+        """
+        return self.asnumpy().std(axis=0).item()
 
     def var(self):
-        """The variance of this stat."""
-        return self.asnumpy().var(axis=0)
+        """The variance of this stat.
+
+        Notes
+        -----
+        This implementation calculates the variance with N in the denominator. (NumPy's default)
+        This is in contrast to the sample variation which normalizes by N-1.
+        See https://www.allendowney.com/blog/2024/06/08/which-standard-deviation/
+        for more details.
+        """
+        return self.asnumpy().var(axis=0).item()
 
     def moment(self, order=2, center=False):
         """The statistical moments of this stat.
@@ -239,7 +276,57 @@ class IDStat:
 
         """
         arr = self.asnumpy()
-        return spmoment(arr, moment=order) if center else np.mean(arr**order)
+        return spmoment(arr, moment=order) if center else np.mean(arr**order).item()
+
+    def argmin(self):
+        """The ID corresponding to the minimum of the stat
+
+        When the minimum value is not unique, returns first
+        ID corresponding to the minimum value.
+
+        Returns
+        -------
+        hashable
+            The ID to which the minimum value corresponds.
+        """
+        d = self.asdict()
+        return min(d, key=d.get)
+
+    def argmax(self):
+        """The ID corresponding to the maximum of the stat
+
+        When the maximal value is not unique, returns first
+        ID corresponding to the maximal value.
+
+        Returns
+        -------
+        hashable
+            The ID to which the maximum value corresponds.
+        """
+        d = self.asdict()
+        return max(d, key=d.get)
+
+    def argsort(self, reverse=False):
+        """Get the list of IDs sorted by stat value.
+
+        When values are not unique, the order of the IDs
+        is preserved.
+
+        Parameters
+        ----------
+        reverse : bool
+            Whether the sorting should be ascending or descending.
+
+        Returns
+        -------
+        list
+            The IDs sorted in ascending or descending order.
+        """
+        d = self.asdict()
+        return sorted(d, key=d.get, reverse=reverse)
+
+    def unique(self, return_counts=False):
+        return np.unique(self.asnumpy(), return_counts=return_counts)
 
 
 class NodeStat(IDStat):
@@ -247,7 +334,7 @@ class NodeStat(IDStat):
 
     `NodeStat` objects represent a mapping that assigns a value to each node in a
     network.  For more details, see the `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     """
 
@@ -257,7 +344,7 @@ class DiNodeStat(IDStat):
 
     `NodeStat` objects represent a mapping that assigns a value to each node in a
     network.  For more details, see the `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     """
 
@@ -267,7 +354,7 @@ class EdgeStat(IDStat):
 
     `EdgeStat` objects represent a mapping that assigns a value to each edge in a
     network.  For more details, see the `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     """
 
@@ -277,7 +364,7 @@ class DiEdgeStat(IDStat):
 
     `EdgeStat` objects represent a mapping that assigns a value to each edge in a
     network.  For more details, see the `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     """
 
@@ -491,8 +578,7 @@ class MultiNodeStat(MultiIDStat):
     """Multiple node-quantity mappings.
 
     For more details, see the `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
-
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
     """
 
     statsclass = NodeStat
@@ -503,7 +589,7 @@ class MultiDiNodeStat(MultiIDStat):
     """Multiple node-quantity mappings.
 
     For more details, see the `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     """
 
@@ -515,7 +601,7 @@ class MultiEdgeStat(MultiIDStat):
     """Multiple edge-quantity mappings.
 
     For more details, see the `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     """
 
@@ -527,7 +613,7 @@ class MultiDiEdgeStat(MultiIDStat):
     """Multiple edge-quantity mappings.
 
     For more details, see the `tutorial
-    <https://github.com/xgi-org/xgi/blob/main/tutorials/Tutorial%206%20-%20Statistics.ipynb>`_.
+    <https://xgi.readthedocs.io/en/stable/api/tutorials/focus_6.html>`_.
 
     """
 

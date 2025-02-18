@@ -1,4 +1,5 @@
 import tempfile
+from os.path import join
 
 import pytest
 
@@ -157,8 +158,8 @@ def test_read_json():
     assert list(H2.nodes) == ["1", "2", "3", "4"]
     assert H1["name"] == "test"
     assert H1["author"] == "Nicholas Landry"
-    assert [H1.edges.members(id) for id in H1.edges] == [{1, 2}, {2, 3, 4}, {1, 4}]
-    assert [H2.edges.members(id) for id in H2.edges] == [
+    assert [H1.edges.members(e) for e in H1.edges] == [{1, 2}, {2, 3, 4}, {1, 4}]
+    assert [H2.edges.members(e) for e in H2.edges] == [
         {"1", "2"},
         {"2", "3", "4"},
         {"1", "4"},
@@ -216,7 +217,7 @@ def test_read_json():
         xgi.read_json(filename, edgetype=int)
 
 
-def test_write_json(edgelist1):
+def test_write_json(edgelist1, edgelist2):
     _, filename = tempfile.mkstemp()
     H1 = xgi.Hypergraph(edgelist1)
 
@@ -245,9 +246,31 @@ def test_write_json(edgelist1):
 
     assert set(H1.nodes) == set(H2.nodes)
     assert set(H1.edges) == set(H2.edges)
-    assert {frozenset(H1.edges.members(id)) for id in H1.edges} == {
-        frozenset(H2.edges.members(id)) for id in H2.edges
+    assert {frozenset(H1.edges.members(e)) for e in H1.edges} == {
+        frozenset(H2.edges.members(e)) for e in H2.edges
     }
     assert H2.nodes[2] == {"name": "Ilya"}
     assert H2.edges[1] == {"weight": 2}
     assert H2["name"] == "test"
+
+    badH = xgi.Hypergraph()
+    # duplicate node IDs when casting to a string
+    badH.add_nodes_from(["2", 2])
+    with pytest.raises(XGIError):
+        xgi.write_json(badH, "test.json")
+
+    badH = xgi.Hypergraph()
+    # duplicate edge IDs when casting to a string
+    badH.add_edges_from({"2": [1, 2, 3], 2: [4, 5, 6]})
+    with pytest.raises(XGIError):
+        xgi.write_json(badH, "test.json")
+
+    # test list collection
+    H2 = xgi.Hypergraph(edgelist2)
+    collection = [H1, H2]
+    dir = tempfile.mkdtemp()
+
+    xgi.write_json(collection, dir, collection_name="test")
+    collection = xgi.read_json(join(dir, "test_collection_information.json"))
+    assert len(collection) == 2
+    assert isinstance(collection, dict)

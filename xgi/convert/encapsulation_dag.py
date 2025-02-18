@@ -20,17 +20,19 @@ def to_encapsulation_dag(H, subset_types="all"):
         The hypergraph of interest
     subset_types : str, optional
         Type of relations to include. Options are:
-            "all" : all subset relationships
-            "immediate" : only subset relationships between hyperedges of
-                adjacent sizes (i.e., edges from k to k-1)
-            "empirical" : A relaxation of the "immediate" option where only
-                subset relationships between hyperedges of size k and subsets
-                of maximum size k'<k existing in the hypergraph are included.
-                For example, a hyperedge of size 5 may have no immediate
-                encapsulation relationships with hyperedges of size 4, but may
-                encapsulate hyperedegs of size 3, which will be included if
-                using this setting (whereas relationships with subsets of size 2
-                would not be included).
+
+        * "all" : all subset relationships
+        * "immediate" : only subset relationships between hyperedges of
+          adjacent sizes (i.e., edges from k to k-1)
+        * "empirical" : A relaxation of the "immediate" option where only
+          subset relationships between hyperedges of size k and subsets
+          of maximum size k'<k existing in the hypergraph are included.
+          For example, a hyperedge of size 5 may have no immediate
+          encapsulation relationships with hyperedges of size 4, but may
+          encapsulate hyperedegs of size 3, which will be included if
+          using this setting (whereas relationships with subsets of size 2
+          would not be included).
+
     Returns
     -------
     LG : networkx.DiGraph
@@ -124,6 +126,7 @@ def _get_candidates(subset_types, H, he):
         The hypergraph
     he : Set
         The hyperedge
+
     Returns
     -------
     candidates : Set
@@ -153,6 +156,7 @@ def _check_candidate(subset_types, he, cand):
         The hyperedge
     cand : Set
         The candidate
+
     Returns
     -------
     is_candidate : bool

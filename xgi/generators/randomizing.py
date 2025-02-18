@@ -2,7 +2,6 @@
 
 All the functions in this module return a Hypergraph class (i.e. a simple, undirected
 hypergraph).
-
 """
 
 import random
@@ -16,21 +15,23 @@ __all__ = [
 ]
 
 
-def shuffle_hyperedges(S, order, p):
+def shuffle_hyperedges(S, order, p, seed=None):
     """Shuffle existing hyperdeges of order `order` with probablity `p`.
 
     Parameters
     ----------
-    S : xgi.HyperGraph
+    S : xgi.Hypergraph
         Hypergraph
     order : int
         Order of hyperedges to shuffle
     p : float
         Probability of shuffling each hyperedge
+    seed : integer or None (default)
+            Seed for the random number generator.
 
     Returns
     -------
-    H: xgi.HyperGraph
+    H: xgi.Hypergraph
         Hypergraph with edges of order d shuffled
 
     Note
@@ -38,8 +39,8 @@ def shuffle_hyperedges(S, order, p):
     By shuffling hyperedges in a simplicial complex, it will in general lose
     its "simpliciality" and become a hypergraph.
 
-    Reference
-    ---------
+    References
+    ----------
     Zhang, Y.*, Lucas, M.* and Battiston, F., 2023.
     "Higher-order interactions shape collective dynamics differently
     in hypergraphs and simplicial complexes."
@@ -52,6 +53,9 @@ def shuffle_hyperedges(S, order, p):
     >>> H = xgi.shuffle_hyperedges(S, order=2, p=0.5)
 
     """
+
+    if seed is not None:
+        random.seed(seed)
 
     if (order + 1) not in xgi.unique_edge_sizes(S):
         raise ValueError(f"There is no hyperedge of order {order} is this hypergraph.")
@@ -85,7 +89,7 @@ def node_swap(H, nid1, nid2, id_temp=-1, order=None):
 
     Parameters
     ----------
-    H: HyperGraph
+    H: Hypergraph
         Hypergraph to consider
     nid1: node ID
         ID of first node to swap
@@ -99,7 +103,7 @@ def node_swap(H, nid1, nid2, id_temp=-1, order=None):
 
     Returns
     -------
-    HH: HyperGraph
+    HH: Hypergraph
 
     Reference
     ---------
